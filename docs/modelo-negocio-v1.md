@@ -9,7 +9,7 @@ Los socios del negocio son:
 - Raúl Vásquez
 - Héctor Mora
 
-La aplicación permitirá registrar vehículos, propietarios, clientes y controlar la inversión realizada por cada socio.
+La aplicación permitirá registrar, consultar, eliminar, modificar, actualizar los datos vehículos, propietarios, clientes y controlar la inversión realizada por cada socio.
 
 ---
 
