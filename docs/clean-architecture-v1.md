@@ -12,6 +12,12 @@ domain
 ↓
 data
 
+
+Presentation → pantallas.
+
+Domain → reglas del negocio.
+
+Data → conexión con API y MySQL.
 ---
 
 # Domain
