@@ -1,19 +1,32 @@
-const pool = require('./infrastructure/database/connection');
+const express = require('express');
+const cors = require('cors');
 
-async function iniciarBackend() {
-  try {
-    const [rows] = await pool.query('SELECT VERSION() AS version');
+const app = express();
 
-    console.log('✅ Conexión exitosa con MySQL');
-    console.log(rows);
+/*
+  Permite peticiones desde la aplicación móvil.
+*/
+app.use(cors());
 
-    process.exit(0);
+/*
+  Permite recibir datos en formato JSON.
+*/
+app.use(express.json());
 
-  } catch (error) {
-    console.error('❌ Error de conexión');
-    console.error(error);
-    process.exit(1);
-  }
-}
+/*
+  Ruta de prueba para verificar que la API está activa.
+*/
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    mensaje: 'API Órbita Rodante operativa'
+  });
+});
 
-iniciarBackend();
+const PORT = process.env.PORT || 3000;
+
+/*
+  Inicia el servidor.
+*/
+app.listen(PORT, () => {
+  console.log(`✅ Servidor ejecutándose en puerto ${PORT}`);
+});
