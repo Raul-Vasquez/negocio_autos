@@ -1,5 +1,9 @@
 const express = require('express');
 const cors = require('cors');
+const authRoutes =
+require('./presentation/routes/authRoutes');
+
+
 
 const app = express();
 
@@ -23,6 +27,9 @@ app.get('/api/health', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+
+
+app.use('/api/auth', authRoutes);
 
 /*
   Inicia el servidor.
