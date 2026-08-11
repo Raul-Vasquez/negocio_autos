@@ -1,19 +1,46 @@
+const userRepository =
+require('../../infrastructure/repositories/UserRepository');
+
 class LoginUseCase {
 
-  constructor(userRepository) {
+  /*
+    Valida usuario y contraseña.
+  */
+  async ejecutar(usuario, contrasena) {
 
-    this.userRepository = userRepository;
+    const usuarioEncontrado =
+      await userRepository.obtenerPorUsuario(usuario);
 
+    if (!usuarioEncontrado) {
+
+      return {
+        success: false,
+        message: 'Usuario no encontrado'
+      };
+
+    }
+
+    if (
+      usuarioEncontrado.contrasena !== contrasena
+    ) {
+
+      return {
+        success: false,
+        message: 'Contraseña incorrecta'
+      };
+
+    }
+
+    return {
+      success: true,
+      message: 'Inicio de sesión correcto',
+      usuario: {
+        usuario: usuarioEncontrado.usuario,
+        nombres: usuarioEncontrado.nombres,
+        apellidos: usuarioEncontrado.apellidos
+      }
+    };
   }
-
-  async ejecutar(usuario, password) {
-
-    throw new Error(
-      'Lógica de autenticación pendiente'
-    );
-
-  }
-
 }
 
-module.exports = LoginUseCase;
+module.exports = new LoginUseCase();
