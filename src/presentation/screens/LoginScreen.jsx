@@ -1,69 +1,73 @@
-import { useState } from 'react';
+import {
+  useState
+} from 'react';
 
 import {
-    Alert,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
+
+import AuthRepositoryImpl from '../../data/repositories/AuthRepositoryImpl';
+
+import LoginUseCase from '../../domain/usecases/LoginUseCase';
+
+const repository =
+new AuthRepositoryImpl();
+
+const loginUseCase =
+new LoginUseCase(repository);
 
 export default function LoginScreen() {
 
-  const [usuario, setUsuario] = useState('');
-  const [contrasena, setContrasena] = useState('');
+  const [usuario, setUsuario] =
+    useState('');
 
-  const iniciarSesion = async () => {
+  const [contrasena, setContrasena] =
+    useState('');
+
+  async function iniciarSesion() {
 
     try {
 
-      const response = await fetch(
-        'http://TU_IP_LOCAL:3000/api/auth/login',
-        {
-          method: 'POST',
+      const resultado =
+        await loginUseCase.execute(
+          usuario,
+          contrasena
+        );
 
-          headers: {
-            'Content-Type': 'application/json'
-          },
-
-          body: JSON.stringify({
-            usuario,
-            contrasena
-          })
-        }
-      );
-
-      const data = await response.json();
-
-      if (data.success) {
+      if (resultado.success) {
 
         Alert.alert(
           'Bienvenido',
-          `${data.usuario.nombres} ${data.usuario.apellidos}`
+          resultado.usuario.nombres
         );
 
       } else {
 
         Alert.alert(
           'Acceso denegado',
-          data.message
+          resultado.message
         );
 
       }
 
-    } catch (error) {
+    } catch {
 
       Alert.alert(
         'Error',
-        'No fue posible conectar con el servidor'
+        'No fue posible conectar al servidor'
       );
 
     }
 
-  };
+  }
 
   return (
+
     <View style={styles.container}>
 
       <Text style={styles.titulo}>
@@ -72,29 +76,32 @@ export default function LoginScreen() {
 
       <TextInput
         placeholder="Usuario"
-        style={styles.input}
         value={usuario}
         onChangeText={setUsuario}
+        style={styles.input}
       />
 
       <TextInput
         placeholder="Contraseña"
-        style={styles.input}
-        secureTextEntry
         value={contrasena}
         onChangeText={setContrasena}
+        secureTextEntry
+        style={styles.input}
       />
 
       <TouchableOpacity
         style={styles.boton}
         onPress={iniciarSesion}
       >
+
         <Text style={styles.textoBoton}>
           Ingresar
         </Text>
+
       </TouchableOpacity>
 
     </View>
+
   );
 
 }
@@ -104,15 +111,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
-    padding: 25,
-    backgroundColor: '#F5F7FA'
+    padding: 50
   },
 
   titulo: {
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 40
+    marginBottom: 50
   },
 
   input: {
@@ -120,14 +126,13 @@ const styles = StyleSheet.create({
     borderColor: '#DADADA',
     borderRadius: 10,
     padding: 15,
-    marginBottom: 15,
-    backgroundColor: '#FFFFFF'
+    marginBottom: 15
   },
 
   boton: {
-    backgroundColor: '#0D6EFD',
-    padding: 15,
-    borderRadius: 10
+    backgroundColor: '#b4ef13',
+    padding: 20,
+    borderRadius: 15
   },
 
   textoBoton: {
