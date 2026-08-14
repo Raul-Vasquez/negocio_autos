@@ -9,7 +9,7 @@ import React, { useState } from 'react';
 import {
   Alert,
   ImageBackground,
-  SafeAreaView,
+
   StatusBar,
   StyleSheet,
   Text,
@@ -18,6 +18,8 @@ import {
   View,
 } from 'react-native';
 
+// Agrégalo desde la librería correcta justo debajo:
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AuthRepositoryImpl from '../../data/repositories/AuthRepositoryImpl';
 import LoginUseCase from '../../domain/usecases/LoginUseCase';
 
@@ -198,14 +200,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  overlay: {
-  flex: 1,
-  justifyContent: 'center',
-  paddingHorizontal: 25,
-  paddingBottom: 120,
-  backgroundColor: 'rgba(0,0,0,0.15)',
-  },
-
+ overlay: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 25,
+    backgroundColor: 'rgba(0,0,0,0.15)',
+ },
   card: {
     backgroundColor: 'rgba(255,255,255,0.40)',
     borderRadius: 25,
