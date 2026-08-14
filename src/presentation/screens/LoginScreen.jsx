@@ -1,35 +1,68 @@
-import {
-  useState
-} from 'react';
+/*
+|--------------------------------------------------------------------------
+| 1. Librerías
+|--------------------------------------------------------------------------
+*/
+
+import React, { useState } from 'react';
 
 import {
   Alert,
+  ImageBackground,
+  SafeAreaView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 
 import AuthRepositoryImpl from '../../data/repositories/AuthRepositoryImpl';
-
 import LoginUseCase from '../../domain/usecases/LoginUseCase';
 
-const repository =
-new AuthRepositoryImpl();
+/*
+|--------------------------------------------------------------------------
+| 2. Dependencias del Login
+|--------------------------------------------------------------------------
+*/
 
-const loginUseCase =
-new LoginUseCase(repository);
+const authRepository = new AuthRepositoryImpl();
+const loginUseCase = new LoginUseCase(authRepository);
+
+/*
+|--------------------------------------------------------------------------
+| 3. Pantalla Login
+|--------------------------------------------------------------------------
+*/
 
 export default function LoginScreen() {
 
-  const [usuario, setUsuario] =
-    useState('');
-
-  const [contrasena, setContrasena] =
-    useState('');
+  const [usuario, setUsuario] = useState('');
+  const [contrasena, setContrasena] = useState('');
+  const [mostrarContrasena, setMostrarContrasena] = useState(false);
 
   async function iniciarSesion() {
+
+    if (!usuario.trim()) {
+
+      Alert.alert(
+        'Validación',
+        'Ingrese el usuario'
+      );
+
+      return;
+    }
+
+    if (!contrasena.trim()) {
+
+      Alert.alert(
+        'Validación',
+        'Ingrese la contraseña'
+      );
+
+      return;
+    }
 
     try {
 
@@ -43,7 +76,7 @@ export default function LoginScreen() {
 
         Alert.alert(
           'Bienvenido',
-          resultado.usuario.nombres
+          `${resultado.usuario.nombres} ${resultado.usuario.apellidos}`
         );
 
       } else {
@@ -55,11 +88,11 @@ export default function LoginScreen() {
 
       }
 
-    } catch {
+    } catch (error) {
 
       Alert.alert(
         'Error',
-        'No fue posible conectar al servidor'
+        'No fue posible conectar con el servidor'
       );
 
     }
@@ -68,77 +101,174 @@ export default function LoginScreen() {
 
   return (
 
-    <View style={styles.container}>
+    <ImageBackground
+      source={require('../../../assets/images/Login_Inicio.jpg')}
+      style={styles.background}
+      resizeMode="cover"
+    >
 
-      <Text style={styles.titulo}>
-        Órbita Rodante
-      </Text>
+      <StatusBar barStyle="light-content" />
 
-      <TextInput
-        placeholder="Usuario"
-        value={usuario}
-        onChangeText={setUsuario}
-        style={styles.input}
-      />
+      <SafeAreaView style={styles.overlay}>
 
-      <TextInput
-        placeholder="Contraseña"
-        value={contrasena}
-        onChangeText={setContrasena}
-        secureTextEntry
-        style={styles.input}
-      />
+        {/* Tarjeta principal */}
 
-      <TouchableOpacity
-        style={styles.boton}
-        onPress={iniciarSesion}
-      >
+        <View style={styles.card}>
 
-        <Text style={styles.textoBoton}>
-          Ingresar
-        </Text>
+          <Text style={styles.titulo}>
+            Órbita Rodante
+          </Text>
 
-      </TouchableOpacity>
+          <Text style={styles.subtitulo}>
+            Sistema de Gestión Vehicular
+          </Text>
 
-    </View>
+          {/* Usuario */}
+
+          <TextInput
+            style={styles.input}
+            placeholder="Usuario"
+            placeholderTextColor="#555"
+            value={usuario}
+            onChangeText={setUsuario}
+            autoCapitalize="none"
+          />
+
+          {/* Contraseña */}
+
+          <View style={styles.passwordContainer}>
+
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Contraseña"
+              placeholderTextColor="#555"
+              secureTextEntry={!mostrarContrasena}
+              value={contrasena}
+              onChangeText={setContrasena}
+            />
+
+            <TouchableOpacity
+              onPress={() =>
+                setMostrarContrasena(
+                  !mostrarContrasena
+                )
+              }
+            >
+
+              <Text style={styles.eye}>
+                {mostrarContrasena ? '🔒' : '🕵️‍♂️'}
+              </Text>
+
+            </TouchableOpacity>
+
+          </View>
+
+          {/* Botón */}
+
+          <TouchableOpacity
+            style={styles.boton}
+            onPress={iniciarSesion}
+          >
+
+            <Text style={styles.textoBoton}>
+              Ingresar
+            </Text>
+
+          </TouchableOpacity>
+
+        </View>
+
+      </SafeAreaView>
+
+    </ImageBackground>
 
   );
 
 }
 
+/*
+|--------------------------------------------------------------------------
+| 4. Estilos
+|--------------------------------------------------------------------------
+*/
+
 const styles = StyleSheet.create({
 
-  container: {
+  background: {
     flex: 1,
-    justifyContent: 'center',
-    padding: 50
+  },
+
+  overlay: {
+  flex: 1,
+  justifyContent: 'center',
+  paddingHorizontal: 25,
+  paddingBottom: 120,
+  backgroundColor: 'rgba(0,0,0,0.15)',
+  },
+
+  card: {
+    backgroundColor: 'rgba(255,255,255,0.40)',
+    borderRadius: 25,
+    padding: 25,
   },
 
   titulo: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 50
+    color: '#0D6EFD',
+    marginBottom: 10,
+  },
+
+  subtitulo: {
+    textAlign: 'center',
+    fontSize: 15,
+    color: '#222',
+    marginBottom: 25,
   },
 
   input: {
+   backgroundColor: 'rgba(255,255,255,0.20)',
+   borderWidth: 1,
+   borderColor: 'rgba(255,255,255,0.70)',
+   borderRadius: 12,
+   padding: 15,
+   marginBottom: 15,
+   color: '#000',
+  },
+
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.35)',
     borderWidth: 1,
-    borderColor: '#DADADA',
-    borderRadius: 10,
+    borderColor: '#FFFFFF',
+    borderRadius: 12,
+    marginBottom: 15,
+  },
+
+  passwordInput: {
+    flex: 1,
     padding: 15,
-    marginBottom: 15
+    color: '#000',
+  },
+
+  eye: {
+    fontSize: 22,
+    paddingHorizontal: 15,
   },
 
   boton: {
-    backgroundColor: '#b4ef13',
-    padding: 20,
-    borderRadius: 15
+    backgroundColor: '#0D6EFD',
+    padding: 16,
+    borderRadius: 12,
   },
 
   textoBoton: {
     color: '#FFFFFF',
     textAlign: 'center',
-    fontWeight: 'bold'
-  }
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
 
 });
