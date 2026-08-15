@@ -1,15 +1,14 @@
 /*
 |--------------------------------------------------------------------------
-| 1. Librerías
+| BLOQUE 1: HERRAMIENTAS Y LIBRERÍAS
+| Traemos las herramientas de React Native y la función para cambiar de pantalla.
 |--------------------------------------------------------------------------
 */
-
+import { router } from 'expo-router'; // Nos permite viajar entre pantallas
 import React, { useState } from 'react';
-
 import {
   Alert,
   ImageBackground,
-
   StatusBar,
   StyleSheet,
   Text,
@@ -17,116 +16,79 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-
-// Agrégalo desde la librería correcta justo debajo:
 import { SafeAreaView } from 'react-native-safe-area-context';
+
 import AuthRepositoryImpl from '../../data/repositories/AuthRepositoryImpl';
 import LoginUseCase from '../../domain/usecases/LoginUseCase';
 
 /*
 |--------------------------------------------------------------------------
-| 2. Dependencias del Login
+| BLOQUE 2: CONEXIÓN DE REGLAS DE NEGOCIO
+| Preparamos la consulta para validar usuario y contraseña en la base de datos.
 |--------------------------------------------------------------------------
 */
-
 const authRepository = new AuthRepositoryImpl();
 const loginUseCase = new LoginUseCase(authRepository);
 
 /*
 |--------------------------------------------------------------------------
-| 3. Pantalla Login
+| BLOQUE 3: PANTALLA VISUAL Y LÓGICA DE ACCESO
+| Guarda los datos que escribe el usuario y decide si le da paso a la app.
 |--------------------------------------------------------------------------
 */
-
 export default function LoginScreen() {
-
   const [usuario, setUsuario] = useState('');
   const [contrasena, setContrasena] = useState('');
   const [mostrarContrasena, setMostrarContrasena] = useState(false);
 
   async function iniciarSesion() {
-
     if (!usuario.trim()) {
-
-      Alert.alert(
-        'Validación',
-        'Ingrese el usuario'
-      );
-
+      Alert.alert('Validación', 'Ingrese el usuario');
       return;
     }
 
     if (!contrasena.trim()) {
-
-      Alert.alert(
-        'Validación',
-        'Ingrese la contraseña'
-      );
-
+      Alert.alert('Validación', 'Ingrese la contraseña');
       return;
     }
 
     try {
-
-      const resultado =
-        await loginUseCase.execute(
-          usuario,
-          contrasena
-        );
+      const resultado = await loginUseCase.execute(usuario, contrasena);
 
       if (resultado.success) {
-
         Alert.alert(
           'Bienvenido',
-          `${resultado.usuario.nombres} ${resultado.usuario.apellidos}`
+          `${resultado.usuario.nombres} ${resultado.usuario.apellidos}`,
+          [
+            {
+              text: 'Continuar',
+              // Viajamos al Dashboard una vez que el usuario presiona Ok
+              onPress: () => router.replace('/(tabs)'),
+            },
+          ]
         );
-
       } else {
-
-        Alert.alert(
-          'Acceso denegado',
-          resultado.message
-        );
-
+        Alert.alert('Acceso denegado', resultado.message);
       }
-
     } catch (error) {
-
-      Alert.alert(
-        'Error',
-        'No fue posible conectar con el servidor'
-      );
-
+      Alert.alert('Error', 'No fue posible conectar con el servidor');
     }
-
   }
 
   return (
-
     <ImageBackground
       source={require('../../../assets/images/Login_Inicio.jpg')}
       style={styles.background}
       resizeMode="cover"
     >
-
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="light-content" translucent={false} />
 
       <SafeAreaView style={styles.overlay}>
-
-        {/* Tarjeta principal */}
-
         <View style={styles.card}>
+          <Text style={styles.titulo}>Órbita Rodante</Text>
+          <Text style={styles.subtitulo}>Sistema de Gestión Vehicular</Text>
 
-          <Text style={styles.titulo}>
-            Órbita Rodante
-          </Text>
-
-          <Text style={styles.subtitulo}>
-            Sistema de Gestión Vehicular
-          </Text>
-
-          {/* Usuario */}
-
+          {/* Campo de Usuario */}
           <TextInput
             style={styles.input}
             placeholder="Usuario"
@@ -136,10 +98,8 @@ export default function LoginScreen() {
             autoCapitalize="none"
           />
 
-          {/* Contraseña */}
-
+          {/* Campo de Contraseña */}
           <View style={styles.passwordContainer}>
-
             <TextInput
               style={styles.passwordInput}
               placeholder="Contraseña"
@@ -150,68 +110,45 @@ export default function LoginScreen() {
             />
 
             <TouchableOpacity
-              onPress={() =>
-                setMostrarContrasena(
-                  !mostrarContrasena
-                )
-              }
+              onPress={() => setMostrarContrasena(!mostrarContrasena)}
             >
-
               <Text style={styles.eye}>
                 {mostrarContrasena ? '🔒' : '🕵️‍♂️'}
               </Text>
-
             </TouchableOpacity>
-
           </View>
 
-          {/* Botón */}
-
-          <TouchableOpacity
-            style={styles.boton}
-            onPress={iniciarSesion}
-          >
-
-            <Text style={styles.textoBoton}>
-              Ingresar
-            </Text>
-
+          {/* Botón para Ingresar */}
+          <TouchableOpacity style={styles.boton} onPress={iniciarSesion}>
+            <Text style={styles.textoBoton}>Ingresar</Text>
           </TouchableOpacity>
-
         </View>
-
       </SafeAreaView>
-
     </ImageBackground>
-
   );
-
 }
 
 /*
 |--------------------------------------------------------------------------
-| 4. Estilos
+| BLOQUE 4: DISEÑO Y ESTILOS
+| Define la forma, colores y tamaños del formulario.
 |--------------------------------------------------------------------------
 */
-
 const styles = StyleSheet.create({
-
   background: {
     flex: 1,
   },
-
- overlay: {
+  overlay: {
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 25,
     backgroundColor: 'rgba(0,0,0,0.15)',
- },
+  },
   card: {
     backgroundColor: 'rgba(255,255,255,0.40)',
     borderRadius: 25,
     padding: 25,
   },
-
   titulo: {
     fontSize: 32,
     fontWeight: 'bold',
@@ -219,24 +156,21 @@ const styles = StyleSheet.create({
     color: '#0D6EFD',
     marginBottom: 10,
   },
-
   subtitulo: {
     textAlign: 'center',
     fontSize: 15,
     color: '#222',
     marginBottom: 25,
   },
-
   input: {
-   backgroundColor: 'rgba(255,255,255,0.20)',
-   borderWidth: 1,
-   borderColor: 'rgba(255,255,255,0.70)',
-   borderRadius: 12,
-   padding: 15,
-   marginBottom: 15,
-   color: '#000',
+    backgroundColor: 'rgba(255,255,255,0.20)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.70)',
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 15,
+    color: '#000',
   },
-
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -246,29 +180,24 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 15,
   },
-
   passwordInput: {
     flex: 1,
     padding: 15,
     color: '#000',
   },
-
   eye: {
     fontSize: 22,
     paddingHorizontal: 15,
   },
-
   boton: {
     backgroundColor: '#0D6EFD',
     padding: 16,
     borderRadius: 12,
   },
-
   textoBoton: {
     color: '#FFFFFF',
     textAlign: 'center',
     fontWeight: 'bold',
     fontSize: 16,
   },
-
 });

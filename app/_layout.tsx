@@ -20,7 +20,9 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal', headerShown: true }} />
       </Stack>
-      <StatusBar style="auto" />
+     <StatusBar style="auto" translucent={false} />  
     </ThemeProvider>
   );
 }
+ 
+ /*Linea 23 que regula el uso correcto de android */ 
