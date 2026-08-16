@@ -1,10 +1,11 @@
 /*
 |--------------------------------------------------------------------------
 | BLOQUE 1: HERRAMIENTAS Y LIBRERÍAS
-| Traemos las herramientas de React Native y la función para cambiar de pantalla.
+| Traemos las herramientas de React Native, AsyncStorage y navegación.
 |--------------------------------------------------------------------------
 */
-import { router } from 'expo-router'; // Nos permite viajar entre pantallas
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Alert,
@@ -24,7 +25,6 @@ import LoginUseCase from '../../domain/usecases/LoginUseCase';
 /*
 |--------------------------------------------------------------------------
 | BLOQUE 2: CONEXIÓN DE REGLAS DE NEGOCIO
-| Preparamos la consulta para validar usuario y contraseña en la base de datos.
 |--------------------------------------------------------------------------
 */
 const authRepository = new AuthRepositoryImpl();
@@ -33,7 +33,6 @@ const loginUseCase = new LoginUseCase(authRepository);
 /*
 |--------------------------------------------------------------------------
 | BLOQUE 3: PANTALLA VISUAL Y LÓGICA DE ACCESO
-| Guarda los datos que escribe el usuario y decide si le da paso a la app.
 |--------------------------------------------------------------------------
 */
 export default function LoginScreen() {
@@ -56,13 +55,15 @@ export default function LoginScreen() {
       const resultado = await loginUseCase.execute(usuario, contrasena);
 
       if (resultado.success) {
+        // Guardamos los datos reales del usuario (Raúl u Héctor) en el teléfono
+        await AsyncStorage.setItem('usuarioSesion', JSON.stringify(resultado.usuario));
+
         Alert.alert(
           'Bienvenido',
           `${resultado.usuario.nombres} ${resultado.usuario.apellidos}`,
           [
             {
               text: 'Continuar',
-              // Viajamos al Dashboard una vez que el usuario presiona Ok
               onPress: () => router.replace('/(tabs)'),
             },
           ]
@@ -131,16 +132,15 @@ export default function LoginScreen() {
 /*
 |--------------------------------------------------------------------------
 | BLOQUE 4: DISEÑO Y ESTILOS
-| Define la forma, colores y tamaños del formulario.
 |--------------------------------------------------------------------------
 */
 const styles = StyleSheet.create({
   background: {
     flex: 1,
   },
-  overlay: {
+ overlay: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'center', // Centra el contenido verticalmente
     paddingHorizontal: 25,
     backgroundColor: 'rgba(0,0,0,0.15)',
   },

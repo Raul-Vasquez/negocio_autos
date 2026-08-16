@@ -1,14 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -43,6 +47,36 @@ export default function HomeScreen() {
 
   /*
   |--------------------------------------------------------------------------
+  | ESTADO DINÁMICO DE SESIÓN
+  |--------------------------------------------------------------------------
+  */
+  const [usuarioActual, setUsuarioActual] = useState({
+    nombres: 'Cargando...',
+    apellidos: '',
+    rol: 'GERENCIA',
+  });
+
+  const [menuUsuarioVisible, setMenuUsuarioVisible] = useState(false);
+
+  /*
+  |--------------------------------------------------------------------------
+  | FUNCIÓN PARA LEER LA SESIÓN DESDE ASYNCSTORAGE
+  |--------------------------------------------------------------------------
+  */
+  const cargarSesionUsuario = async () => {
+    try {
+      const sesionGuardada = await AsyncStorage.getItem('usuarioSesion');
+      if (sesionGuardada) {
+        const usuarioParsed = JSON.parse(sesionGuardada);
+        setUsuarioActual(usuarioParsed);
+      }
+    } catch (error) {
+      console.log('Error al leer la sesión:', error);
+    }
+  };
+
+  /*
+  |--------------------------------------------------------------------------
   | CARGA DE VEHÍCULOS DESDE EL USE CASE
   |--------------------------------------------------------------------------
   */
@@ -59,13 +93,42 @@ export default function HomeScreen() {
   };
 
   /*
-  | Recarga la lista cada vez que la pantalla pasa a estar enfocada
+  | Carga sesión y vehículos cada vez que se enfoca la pantalla
   */
   useFocusEffect(
     useCallback(() => {
+      cargarSesionUsuario();
       cargarVehiculos();
     }, [])
   );
+
+  /*
+  |--------------------------------------------------------------------------
+  | LÓGICA PARA FINALIZAR SESIÓN
+  |--------------------------------------------------------------------------
+  */
+  const confirmarCerrarSesion = () => {
+    setMenuUsuarioVisible(false);
+
+    Alert.alert(
+      'Cerrar Sesión',
+      '¿Estás seguro de que deseas salir de la aplicación?',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Salir',
+          style: 'destructive',
+          onPress: async () => {
+            await AsyncStorage.removeItem('usuarioSesion');
+            router.replace('/login');
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -81,9 +144,18 @@ export default function HomeScreen() {
             <Text style={styles.locationText}>Orellana, EC</Text>
             <Ionicons name="chevron-down" size={16} color="#1F2937" />
           </View>
-          <View style={styles.avatar}>
-            <Ionicons name="person" size={20} color="#6B21A8" />
-          </View>
+          
+          {/* BOTÓN DE AVATAR CON MENÚ DESPLEGABLE */}
+          <TouchableOpacity 
+            style={styles.avatarContainer} 
+            onPress={() => setMenuUsuarioVisible(true)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.avatar}>
+              <Ionicons name="person" size={20} color="#6B21A8" />
+            </View>
+            <View style={styles.statusBadge} />
+          </TouchableOpacity>
         </View>
 
         {/* TÍTULO PRINCIPAL */}
@@ -197,20 +269,58 @@ export default function HomeScreen() {
         )}
       </ScrollView>
 
-      {/* BOTÓN FLOTANTE PARA INGRESAR NUEVO VEHÍCULO */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => router.push('/formulario-vehiculo')}
+      {/* BOTÓN FLOTANTE: SOLO SE MUESTRA SI ES ADMIN */}
+      {usuarioActual.rol === 'ADMIN' && (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => router.push('/formulario-vehiculo')}
+        >
+          <Ionicons name="add" size={28} color="#FFF" />
+        </TouchableOpacity>
+      )}
+
+      {/* MODAL DESPLEGABLE CON DATOS REALES */}
+      <Modal
+        visible={menuUsuarioVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setMenuUsuarioVisible(false)}
       >
-        <Ionicons name="add" size={28} color="#FFF" />
-      </TouchableOpacity>
+        <TouchableWithoutFeedback onPress={() => setMenuUsuarioVisible(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.menuCard}>
+                <View style={styles.menuHeader}>
+                  <Text style={styles.menuUsuarioTitle}>
+                    {usuarioActual.nombres} {usuarioActual.apellidos}
+                  </Text>
+                  <Text style={styles.menuUsuarioSub}>
+                    {usuarioActual.rol === 'ADMIN' ? 'Administrador' : 'Gerencia'}
+                  </Text>
+                </View>
+
+                <View style={styles.menuDivider} />
+
+                <TouchableOpacity
+                  style={styles.menuOptionBtn}
+                  onPress={confirmarCerrarSesion}
+                >
+                  <Ionicons name="log-out-outline" size={20} color="#DC2626" />
+                  <Text style={styles.cerrarSesionText}>Salir</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
     </SafeAreaView>
   );
 }
 
 /*
 |--------------------------------------------------------------------------
-| ESTILOS DE LA PANTALLA Y TARJETAS
+| ESTILOS
 |--------------------------------------------------------------------------
 */
 const styles = StyleSheet.create({
@@ -220,7 +330,9 @@ const styles = StyleSheet.create({
   iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
   locationContainer: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   locationText: { fontWeight: '600', color: '#1F2937' },
+  avatarContainer: { position: 'relative' },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3E8FF', justifyContent: 'center', alignItems: 'center' },
+  statusBadge: { position: 'absolute', bottom: 1, right: 1, width: 10, height: 10, borderRadius: 5, backgroundColor: '#16A34A', borderWidth: 1.5, borderColor: '#FFF' },
   mainTitle: { fontSize: 24, fontWeight: 'bold', color: '#111827', width: '80%', marginBottom: 20 },
   searchRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
   searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 16, paddingHorizontal: 16, gap: 8, height: 50 },
@@ -233,8 +345,6 @@ const styles = StyleSheet.create({
   brandCard: { alignItems: 'center', marginRight: 16 },
   brandIconBox: { width: 60, height: 60, borderRadius: 16, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
   brandName: { fontSize: 12, color: '#4B5563', fontWeight: '500' },
-  
-  /* ESTILOS DE LA TARJETA DE VEHÍCULO */
   cardContainer: { backgroundColor: '#FFF', borderRadius: 20, padding: 16, marginBottom: 16, elevation: 2 },
   cardTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   infoLeft: { flex: 1, marginRight: 12 },
@@ -245,14 +355,10 @@ const styles = StyleSheet.create({
   priceSubtext: { fontSize: 11, color: '#9CA3AF' },
   carImageRight: { width: 110, height: 85, borderRadius: 14 },
   noImage: { backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
-  
-  /* BARRA INTERMEDIA DE DETALLES */
   detailsRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB', paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, marginVertical: 12, gap: 6 },
   detailText: { fontSize: 12, color: '#6B7280' },
   detailTextBold: { fontSize: 12, fontWeight: 'bold', color: '#374151' },
   divider: { color: '#D1D5DB', fontSize: 12 },
-
-  /* BOTONES DE ACCIÓN DE LA TARJETA */
   actionsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   actionBtnOutline: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderWidth: 1, borderColor: '#D1D5DB', paddingVertical: 8, borderRadius: 12 },
   actionBtnOutlineText: { fontSize: 12, fontWeight: '600', color: '#271d11' },
@@ -260,6 +366,13 @@ const styles = StyleSheet.create({
   actionBtnGreenText: { fontSize: 12, fontWeight: '600', color: '#FFF' },
   actionBtnPrimary: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#111827', paddingVertical: 8, borderRadius: 12 },
   actionBtnPrimaryText: { fontSize: 12, fontWeight: '600', color: '#FFF' },
-
   fab: { position: 'absolute', right: 20, bottom: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: '#111827', justifyContent: 'center', alignItems: 'center', elevation: 5 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.25)', justifyContent: 'flex-start', alignItems: 'flex-end', paddingTop: 65, paddingRight: 20 },
+  menuCard: { width: 180, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 12, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8 },
+  menuHeader: { marginBottom: 6 },
+  menuUsuarioTitle: { fontSize: 14, fontWeight: 'bold', color: '#111827' },
+  menuUsuarioSub: { fontSize: 12, color: '#6B7280' },
+  menuDivider: { height: 1, backgroundColor: '#E5E7EB', marginVertical: 8 },
+  menuOptionBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
+  cerrarSesionText: { color: '#DC2626', fontWeight: 'bold', fontSize: 14 },
 });
