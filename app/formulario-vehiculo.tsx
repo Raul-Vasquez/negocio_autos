@@ -3,20 +3,22 @@
 | CAPA DE PRESENTACIÓN: FORMULARIO WIZARD RESTRUCTURADO (5 PASOS)
 |--------------------------------------------------------------------------
 */
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Alert,
-    Image,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Image,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -38,8 +40,47 @@ export default function FormularioVehiculoScreen() {
   const [marca, setMarca] = useState('Ford');
   const [modelo, setModelo] = useState('');
   const [anio, setAnio] = useState('');
-  const [color, setColor] = useState('Gris Plomo');
+  const [color, setColor] = useState('Azul (incluyendo tonos marino y azul oscuro)');
   const [combustible, setCombustible] = useState('Diesel');
+
+  // Listas completas de Marcas y Colores
+  const listaMarcas = [
+    'Ford',
+    'Toyota',
+    'Hino',
+    'Chevrolet',
+    'Nissan',
+    'Kia',
+    'GWM (Great Wall Motors)',
+    'Hyundai',
+    'Dongfeng',
+    'JAC Motors',
+    'Suzuki',
+    'Renault',
+    'Mazda',
+    'Sinotruk',
+  ];
+
+  const listaColores = [
+    // Colores originales
+    'Gris Plomo',
+    'Blanco',
+    'Negro',
+    'Plateado',
+    'Rojo',
+    // Colores nuevos
+    'Azul (incluyendo tonos marino y azul oscuro)',
+    'Crema / Beige',
+    'Vino',
+    'Amarillo',
+    'Verde',
+    'Naranja',
+    'Dorado',
+    'Café',
+    'Celeste',
+    'Cobre',
+    'Morado',
+  ];
 
   // Paso 2: Estética y Foto desde Galería
   const [motor, setMotor] = useState('');
@@ -54,7 +95,8 @@ export default function FormularioVehiculoScreen() {
   const [telefonoDueno, setTelefonoDueno] = useState('');
 
   // Paso 4: Financiero y Deudas (Informativo)
-  const [fechaCompra, setFechaCompra] = useState('');
+  const [fechaObjeto, setFechaObjeto] = useState(new Date());
+  const [mostrarDatePicker, setMostrarDatePicker] = useState(false);
   const [precioCompra, setPrecioCompra] = useState('');
   const [numeroTraspasos, setNumeroTraspasos] = useState('');
   const [sri, setSri] = useState('0');
@@ -64,6 +106,26 @@ export default function FormularioVehiculoScreen() {
   // Paso 5: Aportes de Socios
   const [aporteRaul, setAporteRaul] = useState('');
   const [aporteHector, setAporteHector] = useState('');
+
+  // Formato estricto DD/MM/YYYY
+  const obtenerFechaFormateada = (date: Date): string => {
+    const dia = String(date.getDate()).padStart(2, '0');
+    const mes = String(date.getMonth() + 1).padStart(2, '0');
+    const anioVal = date.getFullYear();
+    return `${dia}/${mes}/${anioVal}`;
+  };
+
+  const onChangeFecha = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    setMostrarDatePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      const hoy = new Date();
+      if (selectedDate > hoy) {
+        Alert.alert('Fecha inválida', 'La fecha de compra no puede ser posterior al día de hoy.');
+        return;
+      }
+      setFechaObjeto(selectedDate);
+    }
+  };
 
   const totalAdeudadoCalculado =
     (parseFloat(sri) || 0) + (parseFloat(coopaire) || 0) + (parseFloat(ant) || 0);
@@ -100,7 +162,7 @@ export default function FormularioVehiculoScreen() {
         anio: parseInt(anio) || 2024,
         color,
         combustible,
-        fechaCompra,
+        fechaCompra: obtenerFechaFormateada(fechaObjeto),
         precioCompra: parseFloat(precioCompra) || 0,
         numeroTraspasos: parseInt(numeroTraspasos) || 0,
         sri: parseFloat(sri) || 0,
@@ -163,11 +225,9 @@ export default function FormularioVehiculoScreen() {
             <Text style={styles.label}>Marca *</Text>
             <View style={styles.pickerBox}>
               <Picker selectedValue={marca} onValueChange={(val: string) => setMarca(val)}>
-                <Picker.Item label="Ford" value="Ford" />
-                <Picker.Item label="Toyota" value="Toyota" />
-                <Picker.Item label="Hino" value="Hino" />
-                <Picker.Item label="Chevrolet" value="Chevrolet" />
-                <Picker.Item label="Nissan" value="Nissan" />
+                {listaMarcas.map((item) => (
+                  <Picker.Item key={item} label={item} value={item} />
+                ))}
               </Picker>
             </View>
 
@@ -180,11 +240,9 @@ export default function FormularioVehiculoScreen() {
             <Text style={styles.label}>Color</Text>
             <View style={styles.pickerBox}>
               <Picker selectedValue={color} onValueChange={(val: string) => setColor(val)}>
-                <Picker.Item label="Gris Plomo" value="Gris Plomo" />
-                <Picker.Item label="Blanco" value="Blanco" />
-                <Picker.Item label="Negro" value="Negro" />
-                <Picker.Item label="Plateado" value="Plateado" />
-                <Picker.Item label="Rojo" value="Rojo" />
+                {listaColores.map((item) => (
+                  <Picker.Item key={item} label={item} value={item} />
+                ))}
               </Picker>
             </View>
 
@@ -270,8 +328,24 @@ export default function FormularioVehiculoScreen() {
         {paso === 4 && (
           <View>
             <Text style={styles.sectionHeader}>Paso 4: Compra y Deudas (Informativo)</Text>
-            <Text style={styles.label}>Fecha de Compra</Text>
-            <TextInput style={styles.input} placeholder="YYYY-MM-DD" value={fechaCompra} onChangeText={setFechaCompra} />
+            <Text style={styles.label}>Fecha de Compra (DD/MM/YYYY)</Text>
+            
+            <TouchableOpacity 
+              style={styles.datePickerInput} 
+              onPress={() => setMostrarDatePicker(true)}
+            >
+              <Text style={styles.datePickerText}>{obtenerFechaFormateada(fechaObjeto)}</Text>
+            </TouchableOpacity>
+
+            {mostrarDatePicker && (
+              <DateTimePicker
+                value={fechaObjeto}
+                mode="date"
+                display="default"
+                maximumDate={new Date()}
+                onChange={onChangeFecha}
+              />
+            )}
 
             <Text style={styles.label}>Precio de Compra ($) *</Text>
             <TextInput style={styles.input} placeholder="Ej: 42000" keyboardType="decimal-pad" value={precioCompra} onChangeText={setPrecioCompra} />
@@ -325,6 +399,7 @@ export default function FormularioVehiculoScreen() {
               <Text style={styles.summaryText}>• Placa: {placa}</Text>
               <Text style={styles.summaryText}>• Vehículo: {marca} {modelo}</Text>
               <Text style={styles.summaryText}>• Tipo: {tipoVehiculo}</Text>
+              <Text style={styles.summaryText}>• Fecha Compra: {obtenerFechaFormateada(fechaObjeto)}</Text>
               <Text style={styles.summaryText}>• Precio Compra: ${precioCompra}</Text>
               <Text style={styles.summaryText}>• Total Deudas: ${totalAdeudadoCalculado.toFixed(2)}</Text>
               <Text style={styles.summaryText}>• Aporte Raúl: ${aporteRaul || '0'}</Text>
@@ -360,6 +435,8 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, fontWeight: '600', color: '#374151', marginTop: 10, marginBottom: 4 },
   input: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, padding: 12, fontSize: 15 },
   pickerBox: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, overflow: 'hidden' },
+  datePickerInput: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, padding: 12, justifyContent: 'center' },
+  datePickerText: { fontSize: 15, color: '#111827' },
   imagePickerBtn: { backgroundColor: '#F3E8FF', borderWidth: 1, borderColor: '#D8B4FE', borderStyle: 'dashed', borderRadius: 12, padding: 16, alignItems: 'center', marginVertical: 6 },
   imagePickerText: { color: '#6B21A8', fontWeight: 'bold', fontSize: 15 },
   previewImage: { width: '100%', height: 160, borderRadius: 12, marginVertical: 8 },

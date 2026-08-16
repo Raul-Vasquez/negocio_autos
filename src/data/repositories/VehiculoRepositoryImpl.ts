@@ -5,17 +5,15 @@
 */
 import { Vehiculo } from '../../domain/entities/Vehiculo';
 import { VehiculoRepository } from '../../domain/repositories/VehiculoRepository';
-
 // @ts-ignore
-import { api } from '../../shared/constants/api';
+import { crearVehiculoApi, obtenerVehiculosApi } from '../datasources/VehiculoApiDatasource';
 
 export default class VehiculoRepositoryImpl implements VehiculoRepository {
   async crear(vehiculo: Vehiculo): Promise<void> {
-    await api.post('/vehiculos', vehiculo);
+    await crearVehiculoApi(vehiculo);
   }
 
   async obtenerTodos(): Promise<Vehiculo[]> {
-    const response = await api.get('/vehiculos');
-    return response.data;
+    return await obtenerVehiculosApi();
   }
 }
