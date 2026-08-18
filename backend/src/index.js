@@ -1,22 +1,29 @@
 const express = require('express');
 const cors = require('cors');
-const authRoutes = require('./presentation/routes/authRoutes');
 
-// Importación exacta de tu archivo connection.js
+// 1. Importación de rutas (Capa de Presentación)
+const authRoutes = require('./presentation/routes/authRoutes');
+const gastoRoutes = require('./presentation/routes/gastoRoutes');
+
+// 2. Conexión a la Base de Datos MySQL (Capa de Infraestructura)
 const pool = require('./infrastructure/database/connection');
 
 const app = express();
 
+// Configuración de permisos y lectura de JSON
 app.use(cors());
 app.use(express.json());
 
+// Ruta de prueba para comprobar que la API funciona
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     mensaje: 'API Órbita Rodante operativa'
   });
 });
 
+// 3. Registro de rutas modulares (Arquitectura Limpia)
 app.use('/api/auth', authRoutes);
+app.use('/api/gastos', gastoRoutes);
 
 // ==========================================
 // CONSULTAR TODOS LOS VEHÍCULOS
@@ -115,6 +122,7 @@ app.post('/api/vehiculos', async (req, res) => {
   }
 });
 
+// 4. Arrancar Servidor
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {

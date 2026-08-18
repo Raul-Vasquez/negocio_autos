@@ -1,5 +1,5 @@
 import LoginScreen from '../src/presentation/screens/LoginScreen';
 
-export default function Login() {
+export default function LoginRoute() {
   return <LoginScreen />;
 }

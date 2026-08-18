@@ -1,15 +1,18 @@
 const pool = require('../database/connection');
 
 class UserRepository {
-
   /*
     Busca un usuario por su nombre de usuario.
   */
   async obtenerPorUsuario(usuario) {
-
     const [rows] = await pool.query(
       `
-      SELECT *
+      SELECT 
+        usuario,
+        contrasena,
+        nombres,
+        apellidos,
+        rol
       FROM usuarios
       WHERE usuario = ?
       LIMIT 1
@@ -19,7 +22,6 @@ class UserRepository {
 
     return rows[0];
   }
-
 }
 
 module.exports = new UserRepository();

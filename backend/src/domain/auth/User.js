@@ -1,11 +1,10 @@
 class User {
 
   constructor(data) {
-
-    this.id = data.id;
     this.usuario = data.usuario;
-    this.password = data.password;
-
+    this.nombres = data.nombres;
+    this.apellidos = data.apellidos;
+    this.rol = data.rol;
   }
 
 }

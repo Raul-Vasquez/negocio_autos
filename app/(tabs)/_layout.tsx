@@ -22,7 +22,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Explore',
+          title: 'Inicio',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'grid' : 'grid-outline'} size={22} color={color} />
           ),
@@ -31,7 +31,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="explore"
         options={{
-          title: 'listado',
+          title: 'Listado',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'bookmark' : 'bookmark-outline'} size={22} color={color} />
           ),
@@ -40,18 +40,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="ventas"
         options={{
-          title: 'Notifications',
+          title: 'Ventas',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'notifications' : 'notifications-outline'} size={22} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="configuracion"
-        options={{
-          title: 'Settings',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'settings' : 'settings-outline'} size={22} color={color} />
           ),
         }}
       />
