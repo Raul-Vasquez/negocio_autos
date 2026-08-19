@@ -1,5 +1,8 @@
 const express = require('express');
 const cors = require('cors');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 // 1. Importación de rutas (Capa de Presentación)
 const authRoutes = require('./presentation/routes/authRoutes');
@@ -10,30 +13,46 @@ const pool = require('./infrastructure/database/connection');
 
 const app = express();
 
-// Configuración de permisos y lectura de JSON
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Ruta de prueba para comprobar que la API funciona
+// CARPETA PÚBLICA PARA SERVIR IMÁGENES
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsDir));
+
+// CONFIGURACIÓN DE MULTER
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, `vehiculo-${Date.now()}${ext}`);
+  },
+});
+const upload = multer({ storage });
+
+// Ruta de prueba
 app.get('/api/health', (req, res) => {
-  res.status(200).json({
-    mensaje: 'API Órbita Rodante operativa'
-  });
+  res.status(200).json({ mensaje: 'API Órbita Rodante operativa' });
 });
 
-// 3. Registro de rutas modulares (Arquitectura Limpia)
+// Rutas modulares
 app.use('/api/auth', authRoutes);
 app.use('/api/gastos', gastoRoutes);
 
-// ==========================================
-// CONSULTAR TODOS LOS VEHÍCULOS
-// ==========================================
+// CONSULTAR TODOS LOS VEHÍCULOS (DEVUELVE DD/MM/YYYY)
 app.get('/api/vehiculos', async (req, res) => {
   try {
     const query = `
       SELECT 
         v.placa, v.marca, v.modelo, v.anio, v.color, v.combustible,
-        v.fecha_compra AS fechaCompra, v.precio_compra AS precioCompra,
+        DATE_FORMAT(v.fecha_compra, '%d/%m/%Y') AS fechaCompra, 
+        v.precio_compra AS precioCompra,
         v.numero_traspasos AS numeroTraspasos, v.sri, v.coopaire, v.ant,
         v.total_adeudado AS totalAdeudado, v.motor,
         v.estetica_exterior AS esteticaExterior, v.estetica_interior AS esteticaInterior,
@@ -44,7 +63,6 @@ app.get('/api/vehiculos', async (req, res) => {
       LEFT JOIN duenos d ON v.cedula_dueno = d.cedula
       LEFT JOIN aportes_socios a ON v.placa = a.placa
     `;
-
     const [filas] = await pool.query(query);
     res.status(200).json(filas);
   } catch (error) {
@@ -53,15 +71,52 @@ app.get('/api/vehiculos', async (req, res) => {
   }
 });
 
-// ==========================================
-// REGISTRAR VEHÍCULO DE FORMA PERSISTENTE
-// ==========================================
-app.post('/api/vehiculos', async (req, res) => {
+// CONSULTAR UN VEHÍCULO POR PLACA (DEVUELVE DD/MM/YYYY)
+app.get('/api/vehiculos/:placa', async (req, res) => {
+  const { placa } = req.params;
+  try {
+    const query = `
+      SELECT 
+        v.placa, v.marca, v.modelo, v.anio, v.color, v.combustible,
+        DATE_FORMAT(v.fecha_compra, '%d/%m/%Y') AS fechaCompra, 
+        v.precio_compra AS precioCompra,
+        v.numero_traspasos AS numeroTraspasos, v.sri, v.coopaire, v.ant,
+        v.total_adeudado AS totalAdeudado, v.motor,
+        v.estetica_exterior AS esteticaExterior, v.estetica_interior AS esteticaInterior,
+        v.observaciones, v.foto_principal AS fotoPrincipal,
+        d.cedula AS cedulaDueno, d.nombres AS propietarioAnterior, d.cedula AS cedulaPropietario, d.telefono AS telefonoPropietario,
+        a.aporte_raul AS aporteRaul, a.aporte_hector AS aporteHector
+      FROM vehiculos v
+      LEFT JOIN duenos d ON v.cedula_dueno = d.cedula
+      LEFT JOIN aportes_socios a ON v.placa = a.placa
+      WHERE v.placa = ?
+    `;
+
+    const [filas] = await pool.query(query, [placa]);
+
+    if (filas.length === 0) {
+      return res.status(404).json({ error: 'Vehículo no encontrado' });
+    }
+
+    res.status(200).json(filas[0]);
+  } catch (error) {
+    console.error('Error al obtener el vehículo:', error);
+    res.status(500).json({ error: 'Error al consultar la base de datos' });
+  }
+});
+
+// REGISTRAR VEHÍCULO (CONVIERTE DD/MM/YYYY A YYYY-MM-DD PARA MYSQL)
+app.post('/api/vehiculos', upload.single('foto'), async (req, res) => {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
 
     const data = req.body;
+    
+    // Ruta pública de la imagen
+    const rutaImagen = req.file 
+      ? `/uploads/${req.file.filename}` 
+      : (data.fotoPrincipal || '');
 
     // 1. Guardar/Actualizar Dueño
     if (data.cedulaDueno) {
@@ -73,14 +128,18 @@ app.post('/api/vehiculos', async (req, res) => {
       );
     }
 
-    // 2. Formatear Fecha (DD/MM/YYYY a YYYY-MM-DD)
-    let fechaFormateada = null;
+    // 2. Convertir la fecha DD/MM/YYYY a YYYY-MM-DD para la inserción
+    let fechaMySQL = null;
     if (data.fechaCompra && data.fechaCompra.includes('/')) {
-      const [dia, mes, anio] = data.fechaCompra.split('/');
-      fechaFormateada = `${anio}-${mes}-${dia}`;
+      const partes = data.fechaCompra.split('/');
+      if (partes.length === 3) {
+        fechaMySQL = `${partes[2]}-${partes[1]}-${partes[0]}`;
+      }
+    } else {
+      fechaMySQL = data.fechaCompra || null;
     }
 
-    // 3. Guardar Vehículo
+    // 3. Guardar Vehículo en MySQL
     const sqlVehiculo = `
       INSERT INTO vehiculos (
         placa, marca, modelo, anio, color, combustible,
@@ -92,9 +151,9 @@ app.post('/api/vehiculos', async (req, res) => {
 
     await connection.query(sqlVehiculo, [
       data.placa, data.marca, data.modelo, data.anio, data.color, data.combustible,
-      fechaFormateada, data.precioCompra, data.numeroTraspasos, data.sri, data.coopaire, data.ant,
+      fechaMySQL, data.precioCompra, data.numeroTraspasos, data.sri, data.coopaire, data.ant,
       data.totalAdeudado, data.motor, data.esteticaExterior, data.esteticaInterior,
-      data.observaciones, data.fotoPrincipal, data.cedulaDueno
+      data.observaciones, rutaImagen, data.cedulaDueno || null
     ]);
 
     // 4. Guardar Aportes de Socios
@@ -110,9 +169,9 @@ app.post('/api/vehiculos', async (req, res) => {
     ]);
 
     await connection.commit();
-    console.log('✅ Vehículo guardado permanentemente en MySQL:', data.placa);
+    console.log('✅ Vehículo guardado correctamente con placa:', data.placa);
 
-    res.status(201).json({ mensaje: 'Vehículo registrado con éxito' });
+    res.status(201).json({ mensaje: 'Vehículo registrado con éxito', fotoUrl: rutaImagen });
   } catch (error) {
     await connection.rollback();
     console.error('Error al guardar en BD:', error);
@@ -122,9 +181,7 @@ app.post('/api/vehiculos', async (req, res) => {
   }
 });
 
-// 4. Arrancar Servidor
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
   console.log(`✅ Servidor ejecutándose en puerto ${PORT}`);
 });

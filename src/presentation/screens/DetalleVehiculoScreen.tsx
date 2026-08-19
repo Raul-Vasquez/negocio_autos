@@ -1,16 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { API_BASE_URL } from '../../shared/constants/api';
@@ -28,21 +28,26 @@ interface VehiculoDetalle {
   placa: string;
   marca: string;
   modelo: string;
-  anio: number;
-  color: string;
-  precioCompra: number;
+  anio?: number;
+  color?: string;
+  precioCompra?: number;
+  precio_compra?: number;
   propietarioAnterior?: string;
   cedulaPropietario?: string;
   telefonoPropietario?: string;
+  fotoPrincipal?: string; // <--- Agregado exacto como en la BD
   fotoUrl?: string;
+  foto_principal?: string;
 }
 
 interface Props {
-  placa: string;
+  placa?: string;
 }
 
-export default function DetalleVehiculoScreen({ placa }: Props) {
+export default function DetalleVehiculoScreen(props: Props) {
   const router = useRouter();
+  const params = useLocalSearchParams<{ placa?: string }>();
+  const placa = props.placa || params.placa || '';
 
   const [vehiculo, setVehiculo] = useState<VehiculoDetalle | null>(null);
   const [gastos, setGastos] = useState<Gasto[]>([]);
@@ -54,11 +59,12 @@ export default function DetalleVehiculoScreen({ placa }: Props) {
     try {
       setCargando(true);
 
-      // 1. Obtener datos del vehículo
+      // 1. Obtener datos del vehículo (Soporta Array u Objeto)
       const resVehiculo = await fetch(`${API_BASE_URL}/api/vehiculos/${placa}`);
       if (resVehiculo.ok) {
         const dataVehiculo = await resVehiculo.json();
-        setVehiculo(dataVehiculo);
+        const vehiculoData = Array.isArray(dataVehiculo) ? dataVehiculo[0] : dataVehiculo;
+        setVehiculo(vehiculoData || null);
       }
 
       // 2. Obtener lista de gastos por placa
@@ -79,14 +85,21 @@ export default function DetalleVehiculoScreen({ placa }: Props) {
     cargarDatos();
   }, [placa]);
 
+  // Mapeos adaptativos (BD <-> App)
+  const fotoVehiculo = vehiculo?.fotoPrincipal || vehiculo?.fotoUrl || vehiculo?.foto_principal || null;
+  // AGREGA ESTE LOG:
+  console.log('🖼️ URL de la foto cargada:', fotoVehiculo);
+  const precioCompra = Number(vehiculo?.precioCompra || vehiculo?.precio_compra || 0);
   const totalGastos = gastos.reduce((acc, item) => acc + Number(item.valor || 0), 0);
-  const inversionTotal = Number(vehiculo?.precioCompra || 0) + totalGastos;
+  const inversionTotal = precioCompra + totalGastos;
 
   if (cargando && !refrescando) {
     return (
       <SafeAreaView style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#0284C7" />
-        <Text style={styles.textoCargando}>Cargando información del vehículo...</Text>
+        <Text style={styles.textoCargando}>
+          Cargando información del vehículo...
+        </Text>
       </SafeAreaView>
     );
   }
@@ -107,15 +120,21 @@ export default function DetalleVehiculoScreen({ placa }: Props) {
       >
         {/* Encabezado / Hero Banner */}
         <View style={styles.heroCard}>
-          {vehiculo?.fotoUrl ? (
-            <Image source={{ uri: vehiculo.fotoUrl }} style={styles.fotoVehiculo} />
+          {fotoVehiculo ? (
+            <Image
+              source={{ uri: fotoVehiculo }}
+              style={styles.fotoVehiculo}
+              resizeMode="cover"
+            />
           ) : (
             <View style={styles.fotoPlaceholder}>
               <Ionicons name="car-sport" size={64} color="#94A3B8" />
             </View>
           )}
           <View style={styles.badgePlaca}>
-            <Text style={styles.textoBadgePlaca}>{vehiculo?.placa || placa}</Text>
+            <Text style={styles.textoBadgePlaca}>
+              {vehiculo?.placa || placa}
+            </Text>
           </View>
           <Text style={styles.tituloVehiculo}>
             {vehiculo?.marca || 'Vehículo'} {vehiculo?.modelo || ''}
@@ -132,7 +151,7 @@ export default function DetalleVehiculoScreen({ placa }: Props) {
             <Ionicons name="cart" size={22} color="#2563EB" />
             <Text style={styles.labelFinanciero}>Precio Compra</Text>
             <Text style={[styles.montoFinanciero, { color: '#1E40AF' }]}>
-              ${Number(vehiculo?.precioCompra || 0).toFixed(2)}
+              ${precioCompra.toFixed(2)}
             </Text>
           </View>
 
@@ -147,8 +166,10 @@ export default function DetalleVehiculoScreen({ placa }: Props) {
 
         <View style={styles.cardInversionTotal}>
           <View>
-            <Text style={styles.labelInversion}>Inversión Total Actualizada</Text>
-            <Text style={styles.montoInversion}>${inversionTotal.toFixed(2)}</Text>
+            <Text style={styles.labelInversion}>Inversión Total</Text>
+            <Text style={styles.montoInversion}>
+              ${inversionTotal.toFixed(2)}
+            </Text>
           </View>
           <Ionicons name="trending-up" size={32} color="#10B981" />
         </View>
@@ -160,12 +181,16 @@ export default function DetalleVehiculoScreen({ placa }: Props) {
             <View style={styles.cardInfo}>
               <View style={styles.filaInfo}>
                 <Ionicons name="person" size={18} color="#64748B" />
-                <Text style={styles.textoInfo}>Nombre: {vehiculo.propietarioAnterior}</Text>
+                <Text style={styles.textoInfo}>
+                  Nombre: {vehiculo.propietarioAnterior}
+                </Text>
               </View>
               {vehiculo.cedulaPropietario && (
                 <View style={styles.filaInfo}>
                   <Ionicons name="card" size={18} color="#64748B" />
-                  <Text style={styles.textoInfo}>Cédula: {vehiculo.cedulaPropietario}</Text>
+                  <Text style={styles.textoInfo}>
+                    Cédula: {vehiculo.cedulaPropietario}
+                  </Text>
                 </View>
               )}
             </View>
@@ -174,13 +199,17 @@ export default function DetalleVehiculoScreen({ placa }: Props) {
 
         {/* Lista de Gastos */}
         <View style={styles.headerGastos}>
-          <Text style={styles.seccionTitulo}>Historial de Gastos ({gastos.length})</Text>
+          <Text style={styles.seccionTitulo}>
+            Historial de Gastos ({gastos.length})
+          </Text>
         </View>
 
         {gastos.length === 0 ? (
           <View style={styles.cardVacia}>
             <Ionicons name="file-tray-outline" size={40} color="#94A3B8" />
-            <Text style={styles.textoVacio}>No hay gastos registrados para este vehículo.</Text>
+            <Text style={styles.textoVacio}>
+              No hay gastos registrados para este vehículo.
+            </Text>
           </View>
         ) : (
           gastos.map((item, index) => (
@@ -195,12 +224,14 @@ export default function DetalleVehiculoScreen({ placa }: Props) {
                   Pagado por: {item.registradoPor} • {item.fechaGasto}
                 </Text>
               </View>
-              <Text style={styles.montoGasto}>-${Number(item.valor).toFixed(2)}</Text>
+              <Text style={styles.montoGasto}>
+                -${Number(item.valor).toFixed(2)}
+              </Text>
             </View>
           ))
         )}
 
-        {/* Botón Principal Flotante/Footer */}
+        {/* Botón Registrar Nuevo Gasto */}
         <TouchableOpacity
           style={styles.botonGasto}
           onPress={() =>
@@ -221,7 +252,12 @@ export default function DetalleVehiculoScreen({ placa }: Props) {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F8FAFC' },
   container: { padding: 16, paddingBottom: 40 },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+  },
   textoCargando: { marginTop: 10, color: '#64748B', fontSize: 14 },
   heroCard: {
     backgroundColor: '#FFFFFF',
@@ -232,7 +268,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  fotoVehiculo: { width: '100%', height: 180, borderRadius: 12, marginBottom: 12 },
+  fotoVehiculo: {
+    width: '100%',
+    height: 180,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
   fotoPlaceholder: {
     width: '100%',
     height: 140,
@@ -249,10 +290,21 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     marginBottom: 8,
   },
-  textoBadgePlaca: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 16, letterSpacing: 1 },
+  textoBadgePlaca: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 16,
+    letterSpacing: 1,
+  },
   tituloVehiculo: { fontSize: 20, fontWeight: 'bold', color: '#0F172A' },
   subtituloVehiculo: { fontSize: 13, color: '#64748B', marginTop: 2 },
-  seccionTitulo: { fontSize: 16, fontWeight: 'bold', color: '#1E293B', marginBottom: 10, marginTop: 10 },
+  seccionTitulo: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1E293B',
+    marginBottom: 10,
+    marginTop: 10,
+  },
   gridFinanciero: { flexDirection: 'row', gap: 12, marginBottom: 12 },
   cardFinanciera: { flex: 1, padding: 14, borderRadius: 12, gap: 4 },
   labelFinanciero: { fontSize: 12, color: '#475569', fontWeight: '500' },
@@ -267,7 +319,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   labelInversion: { color: '#94A3B8', fontSize: 12, fontWeight: '500' },
-  montoInversion: { color: '#10B981', fontSize: 22, fontWeight: 'bold', marginTop: 2 },
+  montoInversion: {
+    color: '#10B981',
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginTop: 2,
+  },
   cardInfo: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -279,7 +336,11 @@ const styles = StyleSheet.create({
   },
   filaInfo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   textoInfo: { fontSize: 14, color: '#334155' },
-  headerGastos: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  headerGastos: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   cardVacia: {
     backgroundColor: '#FFFFFF',
     padding: 20,
@@ -300,7 +361,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  iconoGasto: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#E0F2FE', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
+  iconoGasto: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#E0F2FE',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
   infoGasto: { flex: 1 },
   tipoGasto: { fontSize: 14, fontWeight: 'bold', color: '#0F172A' },
   descGasto: { fontSize: 12, color: '#475569', marginVertical: 1 },

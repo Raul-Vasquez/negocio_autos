@@ -15,8 +15,6 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
-
-// IMPORTANTE: Importación necesaria para evitar superposición con la barra de estado o notch del celular
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import VehiculoRepositoryImpl from '../../data/repositories/VehiculoRepositoryImpl';
@@ -36,6 +34,7 @@ const BRANDS = [
 export default function HomeScreen() {
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [busqueda, setBusqueda] = useState('');
 
   const [usuarioActual, setUsuarioActual] = useState({
     nombres: 'Cargando...',
@@ -50,7 +49,6 @@ export default function HomeScreen() {
       const sesionGuardada = await AsyncStorage.getItem('usuarioSesion');
       if (sesionGuardada) {
         const usuarioParsed = JSON.parse(sesionGuardada);
-
         const rolDetectado =
           usuarioParsed.rol ||
           usuarioParsed.role ||
@@ -89,7 +87,6 @@ export default function HomeScreen() {
 
   const confirmarCerrarSesion = () => {
     setMenuUsuarioVisible(false);
-
     Alert.alert(
       'Cerrar Sesión',
       '¿Estás seguro de que deseas salir de la aplicación?',
@@ -115,6 +112,11 @@ export default function HomeScreen() {
 
   const esAdminOGerencia =
     esAdmin || rolNormalizado === 'GERENCIA' || rolNormalizado === '2';
+
+  // Filtrado de vehículos según la búsqueda de placa
+  const vehiculosFiltrados = vehiculos.filter((item) =>
+    (item.placa || '').toLowerCase().includes(busqueda.toLowerCase())
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -147,7 +149,7 @@ export default function HomeScreen() {
 
         {/* TÍTULO */}
         <Text style={styles.mainTitle}>
-          Gestion de Inventario de Orbita Rodante
+          Gestión de Inventario Órbita Rodante
         </Text>
 
         {/* BÚSQUEDA */}
@@ -155,10 +157,18 @@ export default function HomeScreen() {
           <View style={styles.searchBox}>
             <Ionicons name="search-outline" size={20} color="#9CA3AF" />
             <TextInput
-              placeholder="Buscar por placa"
+              placeholder="Buscar por placa..."
               placeholderTextColor="#9CA3AF"
               style={styles.searchInput}
+              value={busqueda}
+              onChangeText={setBusqueda}
+              autoCapitalize="characters"
             />
+            {busqueda.length > 0 && (
+              <TouchableOpacity onPress={() => setBusqueda('')}>
+                <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+              </TouchableOpacity>
+            )}
           </View>
           <TouchableOpacity style={styles.filterBtn}>
             <Ionicons name="options-outline" size={20} color="#FFF" />
@@ -167,7 +177,7 @@ export default function HomeScreen() {
 
         {/* CATEGORÍAS */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Categorias de Vehiculos</Text>
+          <Text style={styles.sectionTitle}>Categorías de Vehículos</Text>
           <TouchableOpacity>
             <Text style={styles.viewAll}>Ver Todo</Text>
           </TouchableOpacity>
@@ -190,7 +200,7 @@ export default function HomeScreen() {
         {/* LISTADO */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Listado</Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => setBusqueda('')}>
             <Text style={styles.viewAll}>Ver Todo</Text>
           </TouchableOpacity>
         </View>
@@ -201,8 +211,13 @@ export default function HomeScreen() {
             color="#1F2937"
             style={{ marginTop: 20 }}
           />
+        ) : vehiculosFiltrados.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="car-outline" size={48} color="#9CA3AF" />
+            <Text style={styles.emptyText}>No se encontraron vehículos</Text>
+          </View>
         ) : (
-          vehiculos.map((item: any, index) => (
+          vehiculosFiltrados.map((item: any, index) => (
             <View
               key={item.placa || index.toString()}
               style={styles.cardContainer}
@@ -255,7 +270,6 @@ export default function HomeScreen() {
               </View>
 
               <View style={styles.actionsRow}>
-                {/* BOTÓN GASTOS CONECTADO CON LA NAVEGACIÓN Y LA PLACA */}
                 <TouchableOpacity
                   style={styles.actionBtnOutline}
                   onPress={() =>
@@ -278,7 +292,15 @@ export default function HomeScreen() {
                   <Text style={styles.actionBtnGreenText}>Vender</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.actionBtnPrimary}>
+                <TouchableOpacity
+                  style={styles.actionBtnPrimary}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/detalle-vehiculo',
+                      params: { placa: item.placa || '' },
+                    })
+                  }
+                >
                   <Text style={styles.actionBtnPrimaryText}>Ver detalle</Text>
                 </TouchableOpacity>
               </View>
@@ -287,7 +309,7 @@ export default function HomeScreen() {
         )}
       </ScrollView>
 
-      {/* BOTÓN FLOTANTE (+) MUESTRA PARA ADMIN Y GERENCIA */}
+      {/* BOTÓN FLOTANTE (+) */}
       {esAdminOGerencia && (
         <TouchableOpacity
           style={styles.fab}
@@ -343,13 +365,12 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#eceef0', position: 'relative' },
   scrollContent: { padding: 20 },
- header: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 20,
   },
-
   iconBtn: {
     width: 40,
     height: 40,
@@ -509,6 +530,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   actionBtnPrimaryText: { fontSize: 12, fontWeight: '600', color: '#FFF' },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  emptyText: { marginTop: 8, color: '#9CA3AF', fontSize: 14 },
   fab: {
     position: 'absolute',
     right: 20,

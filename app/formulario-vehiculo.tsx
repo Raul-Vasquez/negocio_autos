@@ -5,7 +5,7 @@
 */
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
-import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import {
@@ -154,20 +154,23 @@ export default function FormularioVehiculoScreen() {
   const sumaAportes = raulNum + hectorNum;
   const faltanteAportes = precioNum - sumaAportes;
 
+  /*
+  |--------------------------------------------------------------------------
+  | SELECCIÓN DE FOTO (SE GUARDA LA URI LOCAL SIN BASE64)
+  |--------------------------------------------------------------------------
+  */
   const seleccionarFoto = async () => {
-    const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permiso.granted) {
-      Alert.alert('Permiso Denegado', 'Se necesita acceso a la galería.');
-      return;
-    }
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'image/*',
+        copyToCacheDirectory: true,
+      });
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-    });
-
-    if (!result.canceled) {
-      setFotoPrincipal(result.assets[0].uri);
+      if (!result.canceled && result.assets && result.assets[0]) {
+        setFotoPrincipal(result.assets[0].uri);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo seleccionar la imagen.');
     }
   };
 
@@ -374,7 +377,7 @@ export default function FormularioVehiculoScreen() {
             <Text style={styles.label}>Foto Principal del Vehículo</Text>
             <TouchableOpacity style={styles.imagePickerBtn} onPress={seleccionarFoto}>
               <Text style={styles.imagePickerText}>
-                {fotoPrincipal ? '📷 Cambiar Foto' : '🖼️ Seleccionar desde Galería'}
+                {fotoPrincipal ? '📷 Cambiar Foto' : '🖼️ Seleccionar desde Galería / WhatsApp'}
               </Text>
             </TouchableOpacity>
 
