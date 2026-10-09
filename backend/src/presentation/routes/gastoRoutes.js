@@ -18,6 +18,17 @@ router.post('/', async (req, res) => {
       fechaGasto,
     } = req.body;
 
+    if (!placa) {
+      return res.status(400).json({ error: 'La placa es obligatoria para registrar un gasto.' });
+    }
+
+    const pool = require('../../infrastructure/database/connection');
+    const [vehiculo] = await pool.query('SELECT estado FROM vehiculos WHERE placa = ?', [placa]);
+
+    if (vehiculo && vehiculo.length > 0 && (vehiculo[0].estado || '').toUpperCase() === 'VENDIDO') {
+      return res.status(400).json({ error: 'No se pueden registrar gastos a un vehículo vendido.' });
+    }
+
     // Convierte de DD/MM/YYYY a YYYY-MM-DD para MySQL
     let fechaEntrada = fecha_gasto || fechaGasto;
     let fechaFormateada = fechaEntrada;

@@ -13,8 +13,8 @@ export default function TabLayout() {
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,
           borderTopColor: '#F3F4F6',
-          height: 60,
-          paddingBottom: 8,
+          height: 72,
+          paddingBottom: 16,
           paddingTop: 8,
         },
       }}
@@ -33,7 +33,7 @@ export default function TabLayout() {
         options={{
           title: 'Listado',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'bookmark' : 'bookmark-outline'} size={22} color={color} />
+            <Ionicons name={focused ? 'list' : 'list-outline'} size={22} color={color} />
           ),
         }}
       />
@@ -42,7 +42,7 @@ export default function TabLayout() {
         options={{
           title: 'Ventas',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'notifications' : 'notifications-outline'} size={22} color={color} />
+            <Ionicons name={focused ? 'cash' : 'cash-outline'} size={22} color={color} />
           ),
         }}
       />

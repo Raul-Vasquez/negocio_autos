@@ -17,10 +17,12 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="login" />
+        <Stack.Screen name="formulario-vehiculo" />
+        <Stack.Screen name="formulario-venta" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal', headerShown: true }} />
       </Stack>
-     <StatusBar style="auto" translucent={false} />  
+      <StatusBar style="auto" translucent={false} />
     </ThemeProvider>
   );
 }

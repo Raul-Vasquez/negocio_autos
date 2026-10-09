@@ -46,6 +46,8 @@ CREATE TABLE vehiculos (
 
     modelo VARCHAR(100) NOT NULL,
 
+    tipo_vehiculo VARCHAR(50),
+
     anio INT,
 
     color VARCHAR(50),
@@ -55,6 +57,10 @@ CREATE TABLE vehiculos (
     fecha_compra DATE,
 
     precio_compra DECIMAL(10,2),
+
+    precio_venta DECIMAL(10,2),
+
+    fecha_venta DATE,
 
     numero_traspasos INT,
 
@@ -76,7 +82,15 @@ CREATE TABLE vehiculos (
 
     foto_principal VARCHAR(255),
 
-    cedula_dueno VARCHAR(10)
+    cedula_dueno VARCHAR(10),
+
+    estado VARCHAR(20) NOT NULL DEFAULT 'DISPONIBLE',
+
+    ganancia_neta DECIMAL(10,2),
+
+    liquidacion_raul DECIMAL(10,2),
+
+    liquidacion_hector DECIMAL(10,2)
 
 );
 

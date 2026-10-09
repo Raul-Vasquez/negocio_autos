@@ -63,10 +63,39 @@ export default function FormularioGastoScreen() {
     Alert.alert(`⚠️ ${titulo}`, mensaje, [{ text: 'Entendido' }]);
   };
 
-  const guardarGasto = async () => {
+  const formatearMonto = (valorText: string | number) => {
+    const numero = Number(String(valorText).replace(/[^0-9.]/g, '')) || 0;
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(numero);
+  };
+
+  const confirmarGuardado = async () => {
+    const valorNumerico = parseFloat(valor);
+    const montoFormateado = formatearMonto(valorNumerico);
+
+    Alert.alert(
+      'Confirmar gasto',
+      `¿Deseas guardar este gasto?\n\nMonto: ${montoFormateado}\nTipo: ${tipoGasto}\nRegistrado por: ${registradoPor}`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar',
+          style: 'destructive',
+          onPress: async () => {
+            await guardarGastoConfirmado();
+          },
+        },
+      ]
+    );
+  };
+
+  const guardarGastoConfirmado = async () => {
     setErrorMensaje(null);
 
-    // Validaciones de campos
     if (!placa || !placa.trim()) {
       mostrarAlertaAdvertencia('Campo requerido', 'No se ha detectado la placa del vehículo.');
       return;
@@ -98,7 +127,6 @@ export default function FormularioGastoScreen() {
       return;
     }
 
-    // Validación extra antes de enviar
     if (fecha > new Date()) {
       mostrarAlertaAdvertencia('Fecha no válida', 'La fecha del gasto no puede ser mayor a la fecha actual.');
       return;
@@ -107,7 +135,6 @@ export default function FormularioGastoScreen() {
     setCargando(true);
 
     try {
-      // Formato DD/MM/YYYY para coincidir con el backend
       const dia = String(fecha.getDate()).padStart(2, '0');
       const mes = String(fecha.getMonth() + 1).padStart(2, '0');
       const anio = fecha.getFullYear();
@@ -126,7 +153,6 @@ export default function FormularioGastoScreen() {
         }),
       });
 
-      // Manejo seguro para evitar "JSON parse error: Unexpected character"
       const textoRespuesta = await respuesta.text();
       let json: any = {};
 
@@ -204,6 +230,7 @@ export default function FormularioGastoScreen() {
           value={valor}
           onChangeText={setValor}
         />
+        <Text style={styles.moneyPreview}>Monto confirmado: {formatearMonto(valor || 0)}</Text>
 
         <Text style={styles.label}>Fecha del Gasto *</Text>
         <TouchableOpacity
@@ -237,7 +264,7 @@ export default function FormularioGastoScreen() {
 
         <TouchableOpacity
           style={[styles.boton, cargando && styles.botonDesactivado]}
-          onPress={guardarGasto}
+          onPress={confirmarGuardado}
           disabled={cargando}
         >
           {cargando ? (
@@ -268,6 +295,12 @@ const styles = StyleSheet.create({
   },
   textoBannerError: { color: '#991B1B', fontSize: 13, flex: 1, fontWeight: '500' },
   label: { fontSize: 14, fontWeight: '600', color: '#334155', marginTop: 12 },
+  moneyPreview: {
+    marginTop: 6,
+    color: '#0F766E',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   input: {
     borderWidth: 1,
     borderColor: '#CBD5E1',

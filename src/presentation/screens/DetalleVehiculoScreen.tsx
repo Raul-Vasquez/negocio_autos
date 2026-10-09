@@ -30,12 +30,21 @@ interface VehiculoDetalle {
   modelo: string;
   anio?: number;
   color?: string;
+  estado?: string;
   precioCompra?: number;
   precio_compra?: number;
+  precioVenta?: number;
+  precio_venta?: number;
+  gananciaNeta?: number;
+  ganancia_neta?: number;
+  liquidacionRaul?: number;
+  liquidacion_raul?: number;
+  liquidacionHector?: number;
+  liquidacion_hector?: number;
   propietarioAnterior?: string;
   cedulaPropietario?: string;
   telefonoPropietario?: string;
-  fotoPrincipal?: string; // <--- Agregado exacto como en la BD
+  fotoPrincipal?: string;
   fotoUrl?: string;
   foto_principal?: string;
 }
@@ -43,6 +52,16 @@ interface VehiculoDetalle {
 interface Props {
   placa?: string;
 }
+
+const DEFAULT_VEHICLE_IMAGE = require('../../../assets/images/icon.png');
+
+const resolveVehicleImage = (url?: string | null): string | null => {
+  if (!url || typeof url !== 'string') return null;
+  if (url.startsWith('file://')) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('/')) return `${API_BASE_URL}${url}`;
+  return `${API_BASE_URL}/uploads/${url}`;
+};
 
 export default function DetalleVehiculoScreen(props: Props) {
   const router = useRouter();
@@ -53,13 +72,13 @@ export default function DetalleVehiculoScreen(props: Props) {
   const [gastos, setGastos] = useState<Gasto[]>([]);
   const [cargando, setCargando] = useState<boolean>(true);
   const [refrescando, setRefrescando] = useState<boolean>(false);
+  const [fotoError, setFotoError] = useState(false);
 
   const cargarDatos = async () => {
     if (!placa) return;
     try {
       setCargando(true);
 
-      // 1. Obtener datos del vehículo (Soporta Array u Objeto)
       const resVehiculo = await fetch(`${API_BASE_URL}/api/vehiculos/${placa}`);
       if (resVehiculo.ok) {
         const dataVehiculo = await resVehiculo.json();
@@ -67,13 +86,13 @@ export default function DetalleVehiculoScreen(props: Props) {
         setVehiculo(vehiculoData || null);
       }
 
-      // 2. Obtener lista de gastos por placa
       const resGastos = await fetch(`${API_BASE_URL}/api/gastos/${placa}`);
       if (resGastos.ok) {
         const dataGastos = await resGastos.json();
         setGastos(Array.isArray(dataGastos) ? dataGastos : []);
       }
     } catch (error) {
+      console.error('Error al cargar los detalles del vehículo:', error);
       Alert.alert('Error', 'No se pudieron cargar los detalles del vehículo.');
     } finally {
       setCargando(false);
@@ -86,12 +105,23 @@ export default function DetalleVehiculoScreen(props: Props) {
   }, [placa]);
 
   // Mapeos adaptativos (BD <-> App)
-  const fotoVehiculo = vehiculo?.fotoPrincipal || vehiculo?.fotoUrl || vehiculo?.foto_principal || null;
-  // AGREGA ESTE LOG:
-  console.log('🖼️ URL de la foto cargada:', fotoVehiculo);
+  const fotoVehiculo = resolveVehicleImage(
+    vehiculo?.fotoPrincipal || vehiculo?.fotoUrl || vehiculo?.foto_principal || null
+  );
   const precioCompra = Number(vehiculo?.precioCompra || vehiculo?.precio_compra || 0);
+  const precioVenta = Number(vehiculo?.precioVenta || vehiculo?.precio_venta || 0);
+  const gananciaNeta = Number(
+    vehiculo?.gananciaNeta ?? vehiculo?.ganancia_neta ?? 0
+  );
+  const liquidacionRaul = Number(
+    vehiculo?.liquidacionRaul ?? vehiculo?.liquidacion_raul ?? 0
+  );
+  const liquidacionHector = Number(
+    vehiculo?.liquidacionHector ?? vehiculo?.liquidacion_hector ?? 0
+  );
   const totalGastos = gastos.reduce((acc, item) => acc + Number(item.valor || 0), 0);
   const inversionTotal = precioCompra + totalGastos;
+  const esVendido = (vehiculo?.estado || '').toUpperCase() === 'VENDIDO';
 
   if (cargando && !refrescando) {
     return (
@@ -120,16 +150,19 @@ export default function DetalleVehiculoScreen(props: Props) {
       >
         {/* Encabezado / Hero Banner */}
         <View style={styles.heroCard}>
-          {fotoVehiculo ? (
+          {fotoVehiculo && !fotoError ? (
             <Image
               source={{ uri: fotoVehiculo }}
               style={styles.fotoVehiculo}
               resizeMode="cover"
+              onError={() => setFotoError(true)}
             />
           ) : (
-            <View style={styles.fotoPlaceholder}>
-              <Ionicons name="car-sport" size={64} color="#94A3B8" />
-            </View>
+            <Image
+              source={DEFAULT_VEHICLE_IMAGE}
+              style={styles.fotoVehiculo}
+              resizeMode="cover"
+            />
           )}
           <View style={styles.badgePlaca}>
             <Text style={styles.textoBadgePlaca}>
@@ -173,6 +206,36 @@ export default function DetalleVehiculoScreen(props: Props) {
           </View>
           <Ionicons name="trending-up" size={32} color="#10B981" />
         </View>
+
+        {esVendido && (
+          <View style={styles.cardLiquidacion}>
+            <Text style={styles.tituloLiquidacion}>Resumen de Liquidación</Text>
+            <View style={styles.rowLiquidacion}>
+              <Text style={styles.labelLiquidacion}>Precio de Venta</Text>
+              <Text style={styles.valorLiquidacion}>${precioVenta.toFixed(2)}</Text>
+            </View>
+            <View style={styles.rowLiquidacion}>
+              <Text style={styles.labelLiquidacion}>Precio de Compra</Text>
+              <Text style={styles.valorLiquidacion}>${precioCompra.toFixed(2)}</Text>
+            </View>
+            <View style={styles.rowLiquidacion}>
+              <Text style={styles.labelLiquidacion}>Total Gastos</Text>
+              <Text style={styles.valorLiquidacion}>${totalGastos.toFixed(2)}</Text>
+            </View>
+            <View style={styles.rowLiquidacionDestacado}>
+              <Text style={styles.labelLiquidacion}>Ganancia Neta</Text>
+              <Text style={styles.valorGanancia}>${gananciaNeta.toFixed(2)}</Text>
+            </View>
+            <View style={styles.rowLiquidacion}>
+              <Text style={styles.labelLiquidacion}>A Raúl</Text>
+              <Text style={styles.valorLiquidacion}>${liquidacionRaul.toFixed(2)}</Text>
+            </View>
+            <View style={styles.rowLiquidacion}>
+              <Text style={styles.labelLiquidacion}>A Héctor</Text>
+              <Text style={styles.valorLiquidacion}>${liquidacionHector.toFixed(2)}</Text>
+            </View>
+          </View>
+        )}
 
         {/* Propietario Anterior */}
         {vehiculo?.propietarioAnterior && (
@@ -325,6 +388,37 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginTop: 2,
   },
+  cardLiquidacion: {
+    backgroundColor: '#FFF7ED',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+  },
+  tituloLiquidacion: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#9A4D00',
+    marginBottom: 12,
+  },
+  rowLiquidacion: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  rowLiquidacionDestacado: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    marginBottom: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#FDBA74',
+    paddingTop: 8,
+  },
+  labelLiquidacion: { color: '#7C2D12', fontSize: 13, fontWeight: '600' },
+  valorLiquidacion: { color: '#7C2D12', fontSize: 13, fontWeight: '700' },
+  valorGanancia: { color: '#166534', fontSize: 14, fontWeight: '800' },
   cardInfo: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,

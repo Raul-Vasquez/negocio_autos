@@ -13,3 +13,11 @@ export default class ObtenerVehiculosUseCase {
     return await this.vehiculoRepository.obtenerTodos();
   }
 }
+
+export class ObtenerVentasUseCase {
+  constructor(private vehiculoRepository: VehiculoRepository) {}
+
+  async execute(): Promise<Vehiculo[]> {
+    return await this.vehiculoRepository.obtenerVendidos();
+  }
+}
