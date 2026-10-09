@@ -3,22 +3,23 @@
 | CAPA DE PRESENTACIÓN: FORMULARIO WIZARD RESTRUCTURADO (5 PASOS)
 |--------------------------------------------------------------------------
 */
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { router } from 'expo-router';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
-  Image,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    Image,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -27,6 +28,61 @@ import CrearVehiculoUseCase from '../../domain/usecases/CrearVehiculoUseCase';
 
 const vehiculoRepo = new VehiculoRepositoryImpl();
 const crearVehiculoUseCase = new CrearVehiculoUseCase(vehiculoRepo);
+const BORRADOR_KEY = '@borrador_vehiculo';
+
+type BorradorVehiculo = {
+  paso: number;
+  placa: string;
+  tipoVehiculo: string;
+  marca: string;
+  modelo: string;
+  anio: string;
+  color: string;
+  combustible: string;
+  motor: string;
+  esteticaExterior: string;
+  esteticaInterior: string;
+  fotoPrincipal: string | null;
+  observaciones: string;
+  cedulaDueno: string;
+  nombreDueno: string;
+  telefonoDueno: string;
+  fechaCompraISO: string;
+  precioCompra: string;
+  numeroTraspasos: string;
+  sri: string;
+  coopaire: string;
+  ant: string;
+  aporteRaul: string;
+  aporteHector: string;
+};
+
+const resetFormulario = () => ({
+  paso: 1,
+  placa: '',
+  tipoVehiculo: 'Camioneta',
+  marca: 'Ford',
+  modelo: '',
+  anio: '',
+  color: 'Azul (incluyendo tonos marino y azul oscuro)',
+  combustible: 'Diesel',
+  motor: '',
+  esteticaExterior: '10/10',
+  esteticaInterior: '10/10',
+  fotoPrincipal: null as string | null,
+  observaciones: '',
+  cedulaDueno: '',
+  nombreDueno: '',
+  telefonoDueno: '',
+  fechaCompraISO: new Date().toISOString(),
+  precioCompra: '',
+  numeroTraspasos: '',
+  sri: '0',
+  coopaire: '0',
+  ant: '0',
+  aporteRaul: '',
+  aporteHector: '',
+});
 
 export default function FormularioVehiculoScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
@@ -34,6 +90,8 @@ export default function FormularioVehiculoScreen() {
   const [paso, setPaso] = useState(1);
   const [modalVisible, setModalVisible] = useState(false);
   const [errores, setErrores] = useState<{ [key: string]: string }>({});
+  const [seHaCargadoBorrador, setSeHaCargadoBorrador] = useState(false);
+  const [hayBorradorRecuperado, setHayBorradorRecuperado] = useState(false);
 
   const [placa, setPlaca] = useState('');
   const [tipoVehiculo, setTipoVehiculo] = useState('Camioneta');
@@ -99,6 +157,155 @@ export default function FormularioVehiculoScreen() {
 
   const [aporteRaul, setAporteRaul] = useState('');
   const [aporteHector, setAporteHector] = useState('');
+
+  const guardarBorrador = async () => {
+    const payload: BorradorVehiculo = {
+      paso,
+      placa,
+      tipoVehiculo,
+      marca,
+      modelo,
+      anio,
+      color,
+      combustible,
+      motor,
+      esteticaExterior,
+      esteticaInterior,
+      fotoPrincipal,
+      observaciones,
+      cedulaDueno,
+      nombreDueno,
+      telefonoDueno,
+      fechaCompraISO: fechaObjeto.toISOString(),
+      precioCompra,
+      numeroTraspasos,
+      sri,
+      coopaire,
+      ant,
+      aporteRaul,
+      aporteHector,
+    };
+
+    try {
+      await AsyncStorage.setItem(BORRADOR_KEY, JSON.stringify(payload));
+    } catch (error) {
+      console.error('Error al guardar borrador del vehículo:', error);
+    }
+  };
+
+  const limpiarBorrador = async () => {
+    try {
+      await AsyncStorage.removeItem(BORRADOR_KEY);
+      setHayBorradorRecuperado(false);
+      setPaso(1);
+      setPlaca('');
+      setTipoVehiculo('Camioneta');
+      setMarca('Ford');
+      setModelo('');
+      setAnio('');
+      setColor('Azul (incluyendo tonos marino y azul oscuro)');
+      setCombustible('Diesel');
+      setMotor('');
+      setEsteticaExterior('10/10');
+      setEsteticaInterior('10/10');
+      setFotoPrincipal(null);
+      setObservaciones('');
+      setCedulaDueno('');
+      setNombreDueno('');
+      setTelefonoDueno('');
+      setFechaObjeto(new Date());
+      setPrecioCompra('');
+      setNumeroTraspasos('');
+      setSri('0');
+      setCoopaire('0');
+      setAnt('0');
+      setAporteRaul('');
+      setAporteHector('');
+      setErrores({});
+    } catch (error) {
+      console.error('Error al limpiar el borrador del vehículo:', error);
+    }
+  };
+
+  useEffect(() => {
+    const cargarBorrador = async () => {
+      try {
+        const guardado = await AsyncStorage.getItem(BORRADOR_KEY);
+        if (!guardado) {
+          setSeHaCargadoBorrador(true);
+          return;
+        }
+
+        const borrador = JSON.parse(guardado) as Partial<BorradorVehiculo>;
+        setPaso(typeof borrador.paso === 'number' ? borrador.paso : 1);
+        setPlaca(borrador.placa || '');
+        setTipoVehiculo(borrador.tipoVehiculo || 'Camioneta');
+        setMarca(borrador.marca || 'Ford');
+        setModelo(borrador.modelo || '');
+        setAnio(borrador.anio || '');
+        setColor(borrador.color || 'Azul (incluyendo tonos marino y azul oscuro)');
+        setCombustible(borrador.combustible || 'Diesel');
+        setMotor(borrador.motor || '');
+        setEsteticaExterior(borrador.esteticaExterior || '10/10');
+        setEsteticaInterior(borrador.esteticaInterior || '10/10');
+        setFotoPrincipal(borrador.fotoPrincipal || null);
+        setObservaciones(borrador.observaciones || '');
+        setCedulaDueno(borrador.cedulaDueno || '');
+        setNombreDueno(borrador.nombreDueno || '');
+        setTelefonoDueno(borrador.telefonoDueno || '');
+        const fechaISO = borrador.fechaCompraISO;
+        setFechaObjeto(fechaISO ? new Date(fechaISO) : new Date());
+        setPrecioCompra(borrador.precioCompra || '');
+        setNumeroTraspasos(borrador.numeroTraspasos || '');
+        setSri(borrador.sri || '0');
+        setCoopaire(borrador.coopaire || '0');
+        setAnt(borrador.ant || '0');
+        setAporteRaul(borrador.aporteRaul || '');
+        setAporteHector(borrador.aporteHector || '');
+        setHayBorradorRecuperado(true);
+      } catch (error) {
+        console.error('Error al recuperar el borrador del vehículo:', error);
+      } finally {
+        setSeHaCargadoBorrador(true);
+      }
+    };
+
+    void cargarBorrador();
+  }, []);
+
+  useEffect(() => {
+    if (!seHaCargadoBorrador) {
+      return;
+    }
+
+    void guardarBorrador();
+  }, [
+    seHaCargadoBorrador,
+    paso,
+    placa,
+    tipoVehiculo,
+    marca,
+    modelo,
+    anio,
+    color,
+    combustible,
+    motor,
+    esteticaExterior,
+    esteticaInterior,
+    fotoPrincipal,
+    observaciones,
+    cedulaDueno,
+    nombreDueno,
+    telefonoDueno,
+    fechaObjeto,
+    precioCompra,
+    numeroTraspasos,
+    sri,
+    coopaire,
+    ant,
+    aporteRaul,
+    aporteHector,
+  ]);
 
   const normalizarNumero = (valorText: string): number => {
     if (!valorText) return 0;
@@ -257,6 +464,8 @@ export default function FormularioVehiculoScreen() {
               }
 
               await crearVehiculoUseCase.execute(payload);
+              await AsyncStorage.removeItem(BORRADOR_KEY);
+              setHayBorradorRecuperado(false);
               setModalVisible(true);
             } catch (error: any) {
               console.error('Error al guardar el vehículo:', error);
@@ -274,7 +483,29 @@ export default function FormularioVehiculoScreen() {
         <TouchableOpacity onPress={() => (paso > 1 ? setPaso(paso - 1) : router.back())}>
           <Text style={styles.backBtn}>‹ Volver</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Ingreso (Paso {paso} de 5)</Text>
+        <View style={styles.headerActions}>
+          <Text style={styles.title}>Ingreso (Paso {paso} de 5)</Text>
+          {hayBorradorRecuperado && (
+            <TouchableOpacity onPress={() => {
+              Alert.alert(
+                'Descartar borrador',
+                '¿Deseas borrar el avance guardado y empezar de cero?',
+                [
+                  { text: 'Cancelar', style: 'cancel' },
+                  {
+                    text: 'Descartar',
+                    style: 'destructive',
+                    onPress: async () => {
+                      await limpiarBorrador();
+                    },
+                  },
+                ]
+              );
+            }}>
+              <Text style={styles.clearDraftBtn}>Limpiar borrador</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <View style={styles.progressRow}>
@@ -611,6 +842,17 @@ const styles = StyleSheet.create({
   },
   backBtn: { fontSize: 18, color: '#111827', fontWeight: '700' },
   title: { fontSize: 18, fontWeight: '800', color: '#111827' },
+  headerActions: {
+    flex: 1,
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  clearDraftBtn: {
+    color: '#7C2D12',
+    fontSize: 12,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
   progressRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 18, marginBottom: 16 },
   progressStep: {
     flex: 1,

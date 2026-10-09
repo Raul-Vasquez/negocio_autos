@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -9,6 +9,7 @@ import {
   Modal,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -17,10 +18,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { API_BASE_URL } from '../../shared/constants/api';
 import VehiculoRepositoryImpl from '../../data/repositories/VehiculoRepositoryImpl';
 import { Vehiculo } from '../../domain/entities/Vehiculo';
 import ObtenerVehiculosUseCase from '../../domain/usecases/ObtenerVehiculosUseCase';
+import { API_BASE_URL } from '../../shared/constants/api';
 
 const vehiculoRepo = new VehiculoRepositoryImpl();
 const obtenerVehiculosUseCase = new ObtenerVehiculosUseCase(vehiculoRepo);
@@ -34,26 +35,37 @@ const resolveVehicleImage = (url?: string | null): string | null => {
   return `${API_BASE_URL}/uploads/${url}`;
 };
 
-const BRANDS = [
-  { id: '1', name: 'SUV', icon: 'car-sport-outline' },
-  { id: '2', name: 'Camioneta', icon: 'car-outline' },
-  { id: '3', name: 'Camión', icon: 'bus-outline' },
-  { id: '4', name: 'Auto', icon: 'car-sport' },
+const CATEGORIAS_REGISTRO = [
+  { id: '1', name: 'SUV', icon: 'car-sport-outline', value: 'SUV' },
+  { id: '2', name: 'Camioneta', icon: 'car-outline', value: 'Camioneta' },
+  { id: '3', name: 'Camión', icon: 'bus-outline', value: 'Camión' },
+  { id: '4', name: 'Auto', icon: 'car-sport', value: 'Auto' },
 ];
 
 export default function HomeScreen() {
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState('');
-  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<string | null>(null);
+
+  // Estados para Modales
+  const [menuUsuarioVisible, setMenuUsuarioVisible] = useState(false);
+  const [menuMetricsVisible, setMenuMetricsVisible] = useState(false);
+  const [modalFiltrosVisible, setModalFiltrosVisible] = useState(false);
+
+  // Estados para Filtros Avanzados
+  const [filtroSocio, setFiltroSocio] = useState<'TODOS' | 'RAUL' | 'HECTOR'>('TODOS');
+  const [filtroCombustible, setFiltroCombustible] = useState<string>('TODOS');
+  const [precioMaximo, setPrecioMaximo] = useState<string>('');
+
+  // Modo Oscuro Toggle
+  const [modoOscuro, setModoOscuro] = useState(false);
 
   const [usuarioActual, setUsuarioActual] = useState({
-    nombres: 'Cargando...',
+    nombres: 'Usuario',
     apellidos: '',
     rol: '',
   });
 
-  const [menuUsuarioVisible, setMenuUsuarioVisible] = useState(false);
   const [imagenesFallidas, setImagenesFallidas] = useState<Record<string, boolean>>({});
 
   const cargarSesionUsuario = async () => {
@@ -74,7 +86,7 @@ export default function HomeScreen() {
         });
       }
     } catch (error) {
-      console.log('Error al leer la sesión:', error);
+      console.error('Error al leer la sesión:', error);
     }
   };
 
@@ -82,9 +94,9 @@ export default function HomeScreen() {
     try {
       setCargando(true);
       const data = await obtenerVehiculosUseCase.execute();
-      setVehiculos(data);
+      setVehiculos(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.log('Error al cargar vehículos:', error);
+      console.error('Error al cargar vehículos:', error);
     } finally {
       setCargando(false);
     }
@@ -125,11 +137,72 @@ export default function HomeScreen() {
   const esAdminOGerencia =
     esAdmin || rolNormalizado === 'GERENCIA' || rolNormalizado === '2';
 
-  // Filtrado optimizado por placa o categoría
-  const vehiculosFiltrados = vehiculos.filter((item) => {
-    const coincidePlaca = (item.placa || '').toLowerCase().includes(busqueda.toLowerCase());
-    return coincidePlaca;
-  });
+  // Búsqueda inteligente (Placa, Marca, Modelo) y Filtros Avanzados
+  const vehiculosFiltrados = useMemo(() => {
+    return vehiculos.filter((item) => {
+      const q = busqueda.toLowerCase().trim();
+      const coincideBusqueda =
+        !q ||
+        (item.placa || '').toLowerCase().includes(q) ||
+        (item.marca || '').toLowerCase().includes(q) ||
+        (item.modelo || '').toLowerCase().includes(q);
+
+      const aporteRaul = Number(item.aporteRaul || 0);
+      const aporteHector = Number(item.aporteHector || 0);
+
+      const coincideSocio =
+        filtroSocio === 'TODOS' ||
+        (filtroSocio === 'RAUL' && aporteRaul > 0) ||
+        (filtroSocio === 'HECTOR' && aporteHector > 0);
+
+      const coincideCombustible =
+        filtroCombustible === 'TODOS' ||
+        (item.combustible && item.combustible.toUpperCase() === filtroCombustible.toUpperCase());
+
+      const precioCompra = Number(item.precioCompra || 0);
+      const limitePrecio = precioMaximo ? Number(precioMaximo) : Infinity;
+      const coincidePrecio = precioCompra <= limitePrecio;
+
+      return coincideBusqueda && coincideSocio && coincideCombustible && coincidePrecio;
+    });
+  }, [vehiculos, busqueda, filtroSocio, filtroCombustible, precioMaximo]);
+
+  // Cálculos de Métricas Ejecutivas para el Menú Hamburguesa
+  const metricasResumen = useMemo(() => {
+    let totalInvertidoStock = 0;
+    let totalGastosStock = 0;
+    let totalAporteRaulStock = 0;
+    let totalAporteHectorStock = 0;
+
+    vehiculos.forEach((v) => {
+      totalInvertidoStock += Number(v.precioCompra || 0);
+      totalGastosStock += Number(v.totalGastos || 0);
+      totalAporteRaulStock += Number(v.aporteRaul || 0);
+      totalAporteHectorStock += Number(v.aporteHector || 0);
+    });
+
+    return {
+      totalInvertidoStock,
+      totalGastosStock,
+      totalAporteRaulStock,
+      totalAporteHectorStock,
+      cantidadVehiculos: vehiculos.length,
+    };
+  }, [vehiculos]);
+
+  const irARegistrarConCategoria = (tipo: string) => {
+    router.push({
+      pathname: '/formulario-vehiculo',
+      params: { tipoVehiculo: tipo },
+    });
+  };
+
+  const limpiarFiltrosAvanzados = () => {
+    setFiltroSocio('TODOS');
+    setFiltroCombustible('TODOS');
+    setPrecioMaximo('');
+    setModalFiltrosVisible(false);
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -137,16 +210,19 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ENCABEZADO */}
+        {/* ENCABEZADO LIMPIO */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.iconBtn}>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => setMenuMetricsVisible(true)}
+            activeOpacity={0.8}
+          >
             <Ionicons name="menu-outline" size={22} color="#0F172A" />
           </TouchableOpacity>
-          
-          <View style={styles.locationContainer}>
-            <Ionicons name="location" size={15} color="#2563EB" />
-            <Text style={styles.locationText}>Orellana, EC</Text>
-            <Ionicons name="chevron-down" size={14} color="#64748B" />
+
+          <View style={styles.brandBadge}>
+            <Ionicons name="car-sport-outline" size={16} color="#2563EB" />
+            <Text style={styles.brandBadgeText}>Órbita Rodante</Text>
           </View>
 
           <TouchableOpacity
@@ -161,22 +237,24 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* TÍTULO */}
-        <Text style={styles.mainTitle}>
-          Gestión de Inventario Órbita Rodante
-        </Text>
+        {/* TÍTULO SALUDO PERSONALIZADO */}
+        <View style={styles.titleContainer}>
+          <Text style={styles.mainGreeting}>
+            ¡Hola, {usuarioActual?.nombres ? usuarioActual.nombres.split(' ')[0] : 'Socio'}! 👋
+          </Text>
+          <Text style={styles.subGreeting}>Inventario de Vehículos Activos</Text>
+        </View>
 
-        {/* BÚSQUEDA */}
+        {/* BÚSQUEDA Y FILTROS */}
         <View style={styles.searchRow}>
           <View style={styles.searchBox}>
             <Ionicons name="search-outline" size={20} color="#94A3B8" />
             <TextInput
-              placeholder="Buscar por placa..."
+              placeholder="Buscar por placa, marca o modelo..."
               placeholderTextColor="#94A3B8"
               style={styles.searchInput}
               value={busqueda}
               onChangeText={setBusqueda}
-              autoCapitalize="characters"
             />
             {busqueda.length > 0 && (
               <TouchableOpacity onPress={() => setBusqueda('')}>
@@ -184,55 +262,56 @@ export default function HomeScreen() {
               </TouchableOpacity>
             )}
           </View>
-          <TouchableOpacity style={styles.filterBtn}>
+          <TouchableOpacity
+            style={[
+              styles.filterBtn,
+              (filtroSocio !== 'TODOS' || filtroCombustible !== 'TODOS' || precioMaximo !== '') &&
+                styles.filterBtnActive,
+            ]}
+            onPress={() => setModalFiltrosVisible(true)}
+            activeOpacity={0.8}
+          >
             <Ionicons name="options-outline" size={20} color="#FFF" />
           </TouchableOpacity>
         </View>
 
-        {/* CATEGORÍAS */}
+        {/* ACCESOS DIRECTOS POR CATEGORÍA DE REGISTRO */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Categorías</Text>
-          {categoriaSeleccionada && (
-            <TouchableOpacity onPress={() => setCategoriaSeleccionada(null)}>
-              <Text style={styles.viewAll}>Limpiar filtro</Text>
-            </TouchableOpacity>
-          )}
+          <Text style={styles.sectionTitle}>Registrar por Categoría</Text>
         </View>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.brandsScroll}
         >
-          {BRANDS.map((brand) => {
-            const esSeleccionada = categoriaSeleccionada === brand.name;
-            return (
-              <TouchableOpacity
-                key={brand.id}
-                style={[styles.brandCard, esSeleccionada && styles.brandCardSelected]}
-                onPress={() => setCategoriaSeleccionada(esSeleccionada ? null : brand.name)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.brandIconBox, esSeleccionada && styles.brandIconBoxSelected]}>
-                  <Ionicons
-                    name={brand.icon as any}
-                    size={22}
-                    color={esSeleccionada ? '#FFFFFF' : '#0F172A'}
-                  />
-                </View>
-                <Text style={[styles.brandName, esSeleccionada && styles.brandNameSelected]}>
-                  {brand.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+          {CATEGORIAS_REGISTRO.map((cat) => (
+            <TouchableOpacity
+              key={cat.id}
+              style={styles.brandCard}
+              onPress={() => irARegistrarConCategoria(cat.value)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.brandIconBox}>
+                <Ionicons name={cat.icon as any} size={22} color="#0F172A" />
+              </View>
+              <Text style={styles.brandName}>{cat.name}</Text>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
 
-        {/* LISTADO */}
+        {/* LISTADO DE VEHÍCULOS */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Vehículos Disponibles</Text>
-          <TouchableOpacity onPress={() => { setBusqueda(''); setCategoriaSeleccionada(null); }}>
-            <Text style={styles.viewAll}>Ver Todos</Text>
-          </TouchableOpacity>
+          <Text style={styles.sectionTitle}>Vehículos Disponibles ({vehiculosFiltrados.length})</Text>
+          {(busqueda.length > 0 || filtroSocio !== 'TODOS' || precioMaximo !== '') && (
+            <TouchableOpacity
+              onPress={() => {
+                setBusqueda('');
+                limpiarFiltrosAvanzados();
+              }}
+            >
+              <Text style={styles.viewAll}>Ver Todos</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {cargando ? (
@@ -244,7 +323,7 @@ export default function HomeScreen() {
         ) : vehiculosFiltrados.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="car-outline" size={48} color="#94A3B8" />
-            <Text style={styles.emptyText}>No se encontraron vehículos</Text>
+            <Text style={styles.emptyText}>No se encontraron vehículos disponibles</Text>
           </View>
         ) : (
           vehiculosFiltrados.map((item: any, index) => {
@@ -311,7 +390,7 @@ export default function HomeScreen() {
                   )}
                 </View>
 
-                {/* DETALLES EN CHIPS / PILLS REUTILIZABLES */}
+                {/* DETALLES EN CHIPS / PILLS REUTILIZABLES CON MICRO-ÍCONO */}
                 <View style={styles.detailsRow}>
                   {item.combustible && (
                     <View style={styles.chip}>
@@ -327,6 +406,7 @@ export default function HomeScreen() {
                     </View>
                   )}
                   <View style={styles.chipHighlight}>
+                    <Ionicons name="people-outline" size={13} color="#92400E" style={{ marginRight: 3 }} />
                     <Text style={styles.chipTextHighlight}>
                       R: ${item.aporteRaul || 0} / H:${item.aporteHector || 0}
                     </Text>
@@ -379,7 +459,7 @@ export default function HomeScreen() {
         )}
       </ScrollView>
 
-      {/* BOTÓN FLOTANTE (+) */}
+      {/* BOTÓN FLOTANTE REGISTRO (+)} */}
       {esAdminOGerencia && (
         <TouchableOpacity
           style={styles.fab}
@@ -390,7 +470,127 @@ export default function HomeScreen() {
         </TouchableOpacity>
       )}
 
-      {/* MODAL USUARIO */}
+      {/* MODAL MENÚ DE HAMBURGUESA (MÉTRICAS Y RESUMEN DE SOCIOS) */}
+      <Modal
+        visible={menuMetricsVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setMenuMetricsVisible(false)}
+      >
+        <View style={styles.modalMetricsOverlay}>
+          <TouchableOpacity
+            style={styles.modalMetricsBackdrop}
+            activeOpacity={1}
+            onPress={() => setMenuMetricsVisible(false)}
+          />
+          <View style={styles.metricsCard}>
+            <View style={styles.metricsHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="stats-chart" size={20} color="#0F172A" />
+                <Text style={styles.metricsTitle}>Resumen del Negocio</Text>
+              </View>
+              <TouchableOpacity onPress={() => setMenuMetricsVisible(false)} style={styles.closeBtnSmall}>
+                <Ionicons name="close" size={18} color="#0F172A" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* BLOQUE INVENTARIO */}
+              <View style={styles.metricSection}>
+                <Text style={styles.metricSectionTitle}>📊 Inventario en Stock</Text>
+                <View style={styles.metricRow}>
+                  <Text style={styles.metricLabel}>Autos activos</Text>
+                  <Text style={styles.metricValue}>{metricasResumen.cantidadVehiculos} unidades</Text>
+                </View>
+                <View style={styles.metricRow}>
+                  <Text style={styles.metricLabel}>Capital invertido en compras</Text>
+                  <Text style={styles.metricValue}>${metricasResumen.totalInvertidoStock.toFixed(2)}</Text>
+                </View>
+                <View style={styles.metricRow}>
+                  <Text style={styles.metricLabel}>Gastos acumulados en stock</Text>
+                  <Text style={styles.metricValue}>${metricasResumen.totalGastosStock.toFixed(2)}</Text>
+                </View>
+              </View>
+
+              {/* BLOQUE SOCIOS */}
+              <View style={styles.metricSectionSocio}>
+                <Text style={styles.metricSectionTitle}>🤝 Balance de Capital Activo</Text>
+                <View style={styles.metricRow}>
+                  <Text style={styles.metricLabel}>Aportes activos Raúl</Text>
+                  <Text style={styles.metricValueSocio}>${metricasResumen.totalAporteRaulStock.toFixed(2)}</Text>
+                </View>
+                <View style={styles.metricRow}>
+                  <Text style={styles.metricLabel}>Aportes activos Héctor</Text>
+                  <Text style={styles.metricValueSocio}>${metricasResumen.totalAporteHectorStock.toFixed(2)}</Text>
+                </View>
+              </View>
+
+              {/* ACCIÓN EXPORTAR / REPORTES */}
+              <TouchableOpacity
+                style={styles.reportBtn}
+                onPress={() => {
+                  setMenuMetricsVisible(false);
+                  Alert.alert('Reporte', 'Función para exportar inventario en desarrollo.');
+                }}
+              >
+                <Ionicons name="document-text-outline" size={18} color="#FFF" />
+                <Text style={styles.reportBtnText}>Generar Reporte de Inventario</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL FILTROS AVANZADOS */}
+      <Modal
+        visible={modalFiltrosVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModalFiltrosVisible(false)}
+      >
+        <View style={styles.modalFiltrosOverlay}>
+          <View style={styles.filtrosCard}>
+            <Text style={styles.filtrosTitle}>Filtros Avanzados</Text>
+
+            {/* FILTRO SOCIO */}
+            <Text style={styles.filtroLabel}>Socio Inversionista:</Text>
+            <View style={styles.socioFilterRow}>
+              {(['TODOS', 'RAUL', 'HECTOR'] as const).map((s) => (
+                <TouchableOpacity
+                  key={s}
+                  style={[styles.socioFilterOption, filtroSocio === s && styles.socioFilterOptionActive]}
+                  onPress={() => setFiltroSocio(s)}
+                >
+                  <Text style={[styles.socioFilterText, filtroSocio === s && styles.socioFilterTextActive]}>
+                    {s === 'TODOS' ? 'Todos' : s === 'RAUL' ? 'Raúl' : 'Héctor'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* PRECIO MÁXIMO */}
+            <Text style={styles.filtroLabel}>Precio Compra Máximo ($):</Text>
+            <TextInput
+              style={styles.precioInput}
+              placeholder="Ej: 15000"
+              keyboardType="numeric"
+              value={precioMaximo}
+              onChangeText={setPrecioMaximo}
+            />
+
+            <View style={styles.filtrosActions}>
+              <TouchableOpacity style={styles.btnLimpiar} onPress={limpiarFiltrosAvanzados}>
+                <Text style={styles.btnLimpiarText}>Limpiar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.btnAplicar} onPress={() => setModalFiltrosVisible(false)}>
+                <Text style={styles.btnAplicarText}>Aplicar Filtros</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL USUARIO ENRIQUECIDO */}
       <Modal
         visible={menuUsuarioVisible}
         transparent={true}
@@ -403,23 +603,50 @@ export default function HomeScreen() {
               <View style={styles.menuCard}>
                 <View style={styles.menuHeader}>
                   <Text style={styles.menuUsuarioTitle}>
-                    {`${usuarioActual?.nombres || ''} ${
-                      usuarioActual?.apellidos || ''
-                    }`.trim()}
+                    {`${usuarioActual?.nombres || ''} ${usuarioActual?.apellidos || ''}`.trim()}
                   </Text>
                   <Text style={styles.menuUsuarioSub}>
-                    {esAdmin
-                      ? 'Administrador'
-                      : usuarioActual?.rol || 'Gerencia'}
+                    {esAdmin ? 'Administrador' : usuarioActual?.rol || 'Gerencia'}
                   </Text>
                 </View>
 
                 <View style={styles.menuDivider} />
 
+                {/* MODO OSCURO SWITCH */}
+                <View style={styles.menuOptionRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="moon-outline" size={18} color="#0F172A" />
+                    <Text style={styles.menuOptionText}>Modo Oscuro</Text>
+                  </View>
+                  <Switch
+                    value={modoOscuro}
+                    onValueChange={setModoOscuro}
+                    trackColor={{ false: '#CBD5E1', true: '#2563EB' }}
+                  />
+                </View>
+
+                {/* CAMBIAR CONTRASEÑA / AJUSTES */}
                 <TouchableOpacity
                   style={styles.menuOptionBtn}
-                  onPress={confirmarCerrarSesion}
+                  onPress={() => {
+                    setMenuUsuarioVisible(false);
+                    Alert.alert('Ajustes', 'Opción de cambio de contraseña.');
+                  }}
                 >
+                  <Ionicons name="settings-outline" size={18} color="#0F172A" />
+                  <Text style={styles.menuOptionText}>Ajustes de cuenta</Text>
+                </TouchableOpacity>
+
+                {/* VERSIÓN */}
+                <View style={styles.menuOptionRow}>
+                  <Ionicons name="phone-portrait-outline" size={16} color="#64748B" />
+                  <Text style={styles.versionText}>v1.0.4 - Órbita Rodante</Text>
+                </View>
+
+                <View style={styles.menuDivider} />
+
+                {/* CERRAR SESIÓN */}
+                <TouchableOpacity style={styles.menuOptionBtn} onPress={confirmarCerrarSesion}>
                   <Ionicons name="log-out-outline" size={18} color="#DC2626" />
                   <Text style={styles.cerrarSesionText}>Cerrar Sesión</Text>
                 </TouchableOpacity>
@@ -446,7 +673,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   iconBtn: {
     width: 40,
@@ -458,19 +685,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  locationContainer: {
+  brandBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     gap: 6,
   },
-  locationText: {
-    fontWeight: '700',
+  brandBadgeText: {
+    fontWeight: '800',
     color: '#0F172A',
     fontSize: 13,
   },
@@ -498,18 +725,25 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#FFFFFF',
   },
-  mainTitle: {
-    fontSize: 26,
+  titleContainer: {
+    marginBottom: 16,
+  },
+  mainGreeting: {
+    fontSize: 24,
     fontWeight: '800',
     color: '#0F172A',
-    width: '85%',
-    marginBottom: 18,
-    letterSpacing: -0.5,
+    letterSpacing: -0.4,
+  },
+  subGreeting: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '600',
+    marginTop: 2,
   },
   searchRow: {
     flexDirection: 'row',
     gap: 10,
-    marginBottom: 22,
+    marginBottom: 20,
     alignItems: 'center',
   },
   searchBox: {
@@ -527,7 +761,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     color: '#0F172A',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
   },
   filterBtn: {
@@ -538,6 +772,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  filterBtnActive: {
+    backgroundColor: '#2563EB',
+  },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -545,15 +782,15 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
     letterSpacing: -0.3,
   },
   viewAll: {
-    color: '#64748B',
-    fontSize: 13,
-    fontWeight: '600',
+    color: '#2563EB',
+    fontSize: 12,
+    fontWeight: '700',
   },
   brandsScroll: {
     marginBottom: 20,
@@ -561,36 +798,26 @@ const styles = StyleSheet.create({
   brandCard: {
     alignItems: 'center',
     marginRight: 12,
-    width: 76,
+    width: 80,
     paddingVertical: 10,
     borderRadius: 16,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  brandCardSelected: {
-    backgroundColor: '#0F172A',
-    borderColor: '#0F172A',
-  },
   brandIconBox: {
-    width: 44,
-    height: 44,
+    width: 42,
+    height: 42,
     borderRadius: 12,
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 6,
   },
-  brandIconBoxSelected: {
-    backgroundColor: '#1E293B',
-  },
   brandName: {
     fontSize: 11,
     color: '#475569',
     fontWeight: '700',
-  },
-  brandNameSelected: {
-    color: '#FFFFFF',
   },
   cardContainer: {
     backgroundColor: '#FFFFFF',
@@ -610,7 +837,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   carTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
   },
@@ -631,7 +858,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   priceText: {
-    fontSize: 19,
+    fontSize: 18,
     fontWeight: '800',
     color: '#0F172A',
   },
@@ -640,8 +867,8 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   carImageRight: {
-    width: 110,
-    height: 85,
+    width: 105,
+    height: 82,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#F1F5F9',
@@ -668,6 +895,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   chipHighlight: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FEF3C7',
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -705,7 +934,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#059669',
     paddingVertical: 8,
     borderRadius: 10,
   },
@@ -740,7 +969,7 @@ const styles = StyleSheet.create({
   emptyText: {
     marginTop: 8,
     color: '#94A3B8',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
   fab: {
@@ -768,10 +997,10 @@ const styles = StyleSheet.create({
     paddingRight: 16,
   },
   menuCard: {
-    width: 180,
+    width: 210,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 12,
+    padding: 14,
     elevation: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
@@ -794,15 +1023,211 @@ const styles = StyleSheet.create({
     backgroundColor: '#E2E8F0',
     marginVertical: 8,
   },
+  menuOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+  },
   menuOptionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: 6,
+    gap: 8,
+    paddingVertical: 8,
+  },
+  menuOptionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  versionText: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
   },
   cerrarSesionText: {
     color: '#DC2626',
     fontWeight: '800',
+    fontSize: 12,
+  },
+  modalMetricsOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+  },
+  modalMetricsBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  metricsCard: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    padding: 18,
+    maxHeight: '75%',
+  },
+  metricsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  metricsTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginLeft: 8,
+  },
+  closeBtnSmall: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+  },
+  metricSection: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 12,
+  },
+  metricSectionSocio: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+    marginBottom: 14,
+  },
+  metricSectionTitle: {
     fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  metricRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  metricLabel: {
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  metricValue: {
+    fontSize: 12,
+    color: '#0F172A',
+    fontWeight: '800',
+  },
+  metricValueSocio: {
+    fontSize: 12,
+    color: '#7C2D12',
+    fontWeight: '800',
+  },
+  reportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0F172A',
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+    marginBottom: 10,
+  },
+  reportBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  modalFiltrosOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  filtrosCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 18,
+    elevation: 6,
+  },
+  filtrosTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 14,
+  },
+  filtroLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+    marginBottom: 6,
+  },
+  socioFilterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  socioFilterOption: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  socioFilterOptionActive: {
+    backgroundColor: '#0F172A',
+    borderColor: '#0F172A',
+  },
+  socioFilterText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  socioFilterTextActive: {
+    color: '#FFFFFF',
+  },
+  precioInput: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    height: 42,
+    fontSize: 13,
+    color: '#0F172A',
+    marginBottom: 18,
+  },
+  filtrosActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  btnLimpiar: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
+  },
+  btnLimpiarText: {
+    color: '#0F172A',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  btnAplicar: {
+    flex: 2,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#0F172A',
+    alignItems: 'center',
+  },
+  btnAplicarText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 12,
   },
 });
